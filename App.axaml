@@ -1,0 +1,39 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="SfwPlayer.App">
+    <Application.Styles>
+        <FluentTheme />
+        <Style Selector="Button.ctrl">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="Button.ctrl:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#40FFFFFF" />
+        </Style>
+        <Style Selector="Button.ctrl:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#60FFFFFF" />
+        </Style>
+        <Style Selector="Button.padlock">
+            <Setter Property="Background" Value="#B0000000" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Padding" Value="3" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="Button.padlock:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#CC000000" />
+        </Style>
+        <Style Selector="TextBlock.label">
+            <Setter Property="Foreground" Value="#BBBBBBBB" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Application.Styles>
+</Application>

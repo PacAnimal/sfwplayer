@@ -1,0 +1,16 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vlc="using:LibVLCSharp.Avalonia"
+        x:Class="SfwPlayer.MainWindow"
+        Title="sfwplayer"
+        SystemDecorations="None"
+        Background="Black"
+        TransparencyLevelHint="Transparent"
+        Topmost="True"
+        Width="480" Height="270"
+        MinWidth="240" MinHeight="135"
+        CanResize="True">
+
+    <vlc:VideoView x:Name="VideoView" />
+
+</Window>
