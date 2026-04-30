@@ -236,9 +236,11 @@ public partial class MainWindow : Window
     }
 
     // when locked, click-through is enabled everywhere except over the padlock button
-    // so the user can still click it to unlock; when unlocked, click-through only when not hovering
+    // so the user can still click it to unlock; when unlocked, click-through only when not hovering;
+    // at >=95% opacity the window is solid enough that clicks should never pass through
     private void ApplyClickThrough()
     {
+        if (_targetOpacity >= 0.95) { _clickThrough.Disable(); return; }
         var passThrough = _isLocked ? !IsCursorOverPadlock() : !_isHovering;
         if (passThrough) _clickThrough.Enable(); else _clickThrough.Disable();
     }
