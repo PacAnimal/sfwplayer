@@ -157,6 +157,39 @@ public class ClickThrough(Window window, ILogger<ClickThrough> log)
         return false;
     }
 
+    // checks if cursor is over a rect in logical (DIP) coordinates, Y-down from window top-left.
+    // on macOS uses mouseLocationOutsideOfEventStream (same technique as IsCursorOverWindow) to avoid
+    // any absolute screen-coordinate mismatch between CGEventGetLocation and window.Position.
+    public bool IsCursorOverRect(Avalonia.Rect logicalRect)
+    {
+        if (_handle == IntPtr.Zero) return false;
+        try
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                var nsWin = GetNSWindow();
+                if (nsWin == IntPtr.Zero) return false;
+                var pt = MacNative.objc_msgSend_CGPoint(nsWin, MacNative.sel_registerName("mouseLocationOutsideOfEventStream"));
+                // NSWindow Y is up from bottom-left; convert to Y-down from top-left
+                var h = window.ClientSize.Height;
+                var localY = h - pt.Y;
+                return pt.X >= logicalRect.Left && pt.X < logicalRect.Right
+                    && localY >= logicalRect.Top && localY < logicalRect.Bottom;
+            }
+            else
+            {
+                var cursor = GetCursorPosition();
+                var scale = window.RenderScaling;
+                var localX = (cursor.X - window.Position.X) / scale;
+                var localY = (cursor.Y - window.Position.Y) / scale;
+                return localX >= logicalRect.Left && localX < logicalRect.Right
+                    && localY >= logicalRect.Top && localY < logicalRect.Bottom;
+            }
+        }
+        catch (Exception ex) { log.LogWarning(ex, "IsCursorOverRect failed"); }
+        return false;
+    }
+
     public bool IsLeftButtonHeld()
     {
         try

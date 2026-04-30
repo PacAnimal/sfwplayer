@@ -44,6 +44,10 @@ public partial class MainWindow : Window
     [
         new DoubleTransition { Property = Visual.OpacityProperty, Duration = TimeSpan.FromMilliseconds(400) },
     ];
+    private static readonly Transitions FadePadlockHover =
+    [
+        new DoubleTransition { Property = Visual.OpacityProperty, Duration = TimeSpan.FromMilliseconds(150) },
+    ];
 
     public MainWindow(IServiceProvider services)
     {
@@ -206,11 +210,11 @@ public partial class MainWindow : Window
 
         if (_isLocked)
         {
-            // locked: padlock always visible at low opacity so user can always find and click it
+            // locked: padlock always visible; brightens on hover so user can find and click it
             LockClosedIcon.IsVisible = true;
             LockOpenIcon.IsVisible = false;
-            PadlockButton.Transitions = null;
-            PadlockButton.Opacity = 0.45;
+            PadlockButton.Transitions = FadePadlockHover;
+            PadlockButton.Opacity = _isHovering ? 0.75 : 0.45;
             ResizeHandles.IsVisible = false;
         }
         else if (_isHovering)
@@ -239,13 +243,8 @@ public partial class MainWindow : Window
         if (passThrough) _clickThrough.Enable(); else _clickThrough.Disable();
     }
 
-    private bool IsCursorOverPadlock()
-    {
-        var cursor = _clickThrough.GetCursorPosition();
-        var scale = RenderScaling;
-        return cursor.X >= Position.X && cursor.X < Position.X + (int)(40 * scale)
-            && cursor.Y >= Position.Y && cursor.Y < Position.Y + (int)(40 * scale);
-    }
+    private bool IsCursorOverPadlock() =>
+        _clickThrough.IsCursorOverRect(new Avalonia.Rect(0, 0, 40, 40));
 
     private void UpdateTimeLabel() =>
         TimeLabel.Text = $"{Fmt(_currentMs)} / {Fmt(_totalMs)}";
