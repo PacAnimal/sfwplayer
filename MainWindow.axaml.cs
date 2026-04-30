@@ -214,7 +214,7 @@ public partial class MainWindow : Window
             LockClosedIcon.IsVisible = true;
             LockOpenIcon.IsVisible = false;
             PadlockButton.Transitions = FadePadlockHover;
-            PadlockButton.Opacity = _isHovering ? 0.75 : 0.45;
+            PadlockButton.Opacity = _isHovering ? 0.75 : 0.0;
             ResizeHandles.IsVisible = false;
         }
         else if (_isHovering)
@@ -246,7 +246,7 @@ public partial class MainWindow : Window
     }
 
     private bool IsCursorOverPadlock() =>
-        _clickThrough.IsCursorOverRect(new Avalonia.Rect(0, 0, 40, 40));
+        _clickThrough.IsCursorOverRect(new Avalonia.Rect(4, 4, 28, 28));
 
     private void UpdateTimeLabel() =>
         TimeLabel.Text = $"{Fmt(_currentMs)} / {Fmt(_totalMs)}";

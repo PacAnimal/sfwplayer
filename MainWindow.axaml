@@ -23,7 +23,7 @@
                 Classes="padlock"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
-                Width="40" Height="40"
+                Margin="4.5,4.5,0,0"
                 Opacity="0"
                 Click="OnPadlockClicked">
             <Viewbox Width="22" Height="22">
@@ -53,20 +53,20 @@
         <Grid x:Name="ControlsGrid" Opacity="0" IsHitTestVisible="False">
 
             <!-- resize border highlight — ZIndex above the top/bottom bars so all 4 sides are visible -->
-            <Border ZIndex="5" BorderBrush="#60FFFFFF" BorderThickness="6" Background="Transparent" IsHitTestVisible="False" />
+            <Border ZIndex="5" BorderBrush="#60FFFFFF" BorderThickness="4.5" Background="Transparent" IsHitTestVisible="False" />
 
             <!-- top bar: drag handle + close -->
             <Border VerticalAlignment="Top" Height="30" Background="#CC000000">
                 <Grid>
                     <Border Background="Transparent"
                             HorizontalAlignment="Stretch"
-                            Margin="0,0,34,0"
+                            Margin="0,0,40,0"
                             PointerPressed="OnDragPressed" />
                     <Button Classes="ctrl"
                             Content="✕"
                             HorizontalAlignment="Right"
-                            VerticalAlignment="Center"
-                            Margin="0,0,2,0"
+                            VerticalAlignment="Top"
+                            Margin="0,4.5,4.5,0"
                             Click="OnCloseClicked" />
                 </Grid>
             </Border>
@@ -104,37 +104,49 @@
 
         <!-- resize handles — ZIndex=20 wins over padlock (10) and controls, hidden until hover -->
         <Grid x:Name="ResizeHandles" ZIndex="20" IsVisible="False">
-            <Rectangle Width="20" Height="20"
-                       HorizontalAlignment="Left" VerticalAlignment="Top"
+            <!-- NW: L-shaped — horizontal arm along top, vertical arm down left -->
+            <Rectangle Width="30" Height="4.5" HorizontalAlignment="Left" VerticalAlignment="Top"
                        Fill="Transparent" Cursor="TopLeftCorner"
                        Tag="NorthWest" PointerPressed="OnResizePressed" />
-            <Rectangle Width="20" Height="20"
-                       HorizontalAlignment="Right" VerticalAlignment="Top"
+            <Rectangle Width="4.5" Height="30" HorizontalAlignment="Left" VerticalAlignment="Top"
+                       Fill="Transparent" Cursor="TopLeftCorner"
+                       Tag="NorthWest" PointerPressed="OnResizePressed" />
+            <!-- NE: L-shaped — horizontal arm along top, vertical arm down right -->
+            <Rectangle Width="30" Height="4.5" HorizontalAlignment="Right" VerticalAlignment="Top"
                        Fill="Transparent" Cursor="TopRightCorner"
                        Tag="NorthEast" PointerPressed="OnResizePressed" />
-            <Rectangle Width="20" Height="20"
-                       HorizontalAlignment="Left" VerticalAlignment="Bottom"
+            <Rectangle Width="4.5" Height="30" HorizontalAlignment="Right" VerticalAlignment="Top"
+                       Fill="Transparent" Cursor="TopRightCorner"
+                       Tag="NorthEast" PointerPressed="OnResizePressed" />
+            <!-- SW: L-shaped — vertical arm up left, horizontal arm along bottom -->
+            <Rectangle Width="4.5" Height="30" HorizontalAlignment="Left" VerticalAlignment="Bottom"
                        Fill="Transparent" Cursor="BottomLeftCorner"
                        Tag="SouthWest" PointerPressed="OnResizePressed" />
-            <Rectangle Width="20" Height="20"
-                       HorizontalAlignment="Right" VerticalAlignment="Bottom"
+            <Rectangle Width="30" Height="4.5" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                       Fill="Transparent" Cursor="BottomLeftCorner"
+                       Tag="SouthWest" PointerPressed="OnResizePressed" />
+            <!-- SE: L-shaped — vertical arm up right, horizontal arm along bottom -->
+            <Rectangle Width="4.5" Height="30" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                        Fill="Transparent" Cursor="BottomRightCorner"
                        Tag="SouthEast" PointerPressed="OnResizePressed" />
-            <Rectangle Height="6"
+            <Rectangle Width="30" Height="4.5" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                       Fill="Transparent" Cursor="BottomRightCorner"
+                       Tag="SouthEast" PointerPressed="OnResizePressed" />
+            <Rectangle Height="4.5"
                        HorizontalAlignment="Stretch" VerticalAlignment="Top"
-                       Margin="20,0" Fill="Transparent" Cursor="SizeNorthSouth"
+                       Margin="30,0" Fill="Transparent" Cursor="SizeNorthSouth"
                        Tag="North" PointerPressed="OnResizePressed" />
-            <Rectangle Height="6"
+            <Rectangle Height="4.5"
                        HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
-                       Margin="20,0" Fill="Transparent" Cursor="SizeNorthSouth"
+                       Margin="30,0" Fill="Transparent" Cursor="SizeNorthSouth"
                        Tag="South" PointerPressed="OnResizePressed" />
-            <Rectangle Width="6"
+            <Rectangle Width="4.5"
                        VerticalAlignment="Stretch" HorizontalAlignment="Left"
-                       Margin="0,20" Fill="Transparent" Cursor="SizeWestEast"
+                       Margin="0,30" Fill="Transparent" Cursor="SizeWestEast"
                        Tag="West" PointerPressed="OnResizePressed" />
-            <Rectangle Width="6"
+            <Rectangle Width="4.5"
                        VerticalAlignment="Stretch" HorizontalAlignment="Right"
-                       Margin="0,20" Fill="Transparent" Cursor="SizeWestEast"
+                       Margin="0,30" Fill="Transparent" Cursor="SizeWestEast"
                        Tag="East" PointerPressed="OnResizePressed" />
         </Grid>
     </Grid>
