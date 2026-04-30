@@ -78,11 +78,6 @@ public class ClickThrough(Window window, ILogger<ClickThrough> log)
         return default;
     }
 
-    public IntPtr GetNSWindowHandle() =>
-        RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && _handle != IntPtr.Zero
-            ? MacNative.objc_msgSend_ptr(_handle, MacNative.sel_registerName("window"))
-            : IntPtr.Zero;
-
     // captured at resize start — avoids absolute Avalonia→NSWindow coordinate conversion
     private MacNative.NSRect _resizeStartNSFrame;
     private int _resizeStartAvX, _resizeStartAvY;

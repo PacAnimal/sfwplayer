@@ -33,7 +33,6 @@ public sealed class VlcVideoBridge : IDisposable
     private volatile int _front; // index (0 or 1) of the buffer the UI thread reads
     private int _postPending;    // 1 when a Flush is already queued to the UI thread
     private bool _disposed;
-    private bool _firstFrame = true;
     private bool _bitmapNeedsRebuild;
 
     // actual coded dimensions negotiated in VideoFormat; volatile so Flush reads a consistent pair
@@ -49,8 +48,6 @@ public sealed class VlcVideoBridge : IDisposable
 
     // called on the UI thread when a new WriteableBitmap is created (video format negotiated)
     public Action? BitmapSourceChanged { get; set; }
-
-    public event EventHandler? FirstFrameRendered;
 
     private static readonly string[] options =
         ["--no-video-title-show", "--no-osd", "--no-stats"];
@@ -143,10 +140,6 @@ public sealed class VlcVideoBridge : IDisposable
             (int)_videoW, (int)_videoH);
 
         FrameReady?.Invoke();
-
-        if (!_firstFrame) return;
-        _firstFrame = false;
-        FirstFrameRendered?.Invoke(this, EventArgs.Empty);
     }
 
     // BT.601 YCbCr → BGRA; integer fast-path, no lookup tables
