@@ -14,8 +14,7 @@
                                Minimum="{TemplateBinding Minimum}"
                                Maximum="{TemplateBinding Maximum}"
                                Value="{TemplateBinding Value, Mode=TwoWay}"
-                               Orientation="Horizontal"
-                               Margin="4,0">
+                               Orientation="Horizontal">
                             <Track.Thumb>
                                 <Thumb>
                                     <Thumb.Template>

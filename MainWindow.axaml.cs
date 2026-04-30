@@ -312,9 +312,8 @@ public partial class MainWindow : Window
 
     private static double SliderValueAt(Slider slider, double x)
     {
-        const double margin = 4;
         const double thumbHalf = 5.5; // half of the 11px thumb width in ThinSlider
-        var offset = margin + thumbHalf;
+        var offset = thumbHalf;
         var usable = slider.Bounds.Width - 2 * offset;
         if (usable <= 0) return slider.Value;
         return Math.Clamp(slider.Minimum + (x - offset) / usable * (slider.Maximum - slider.Minimum), slider.Minimum, slider.Maximum);
