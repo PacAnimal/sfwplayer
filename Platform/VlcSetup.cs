@@ -7,8 +7,6 @@ namespace SfwPlayer.Platform;
 
 public static class VlcSetup
 {
-    private static string? _pluginsDir;
-
     // Environment.SetEnvironmentVariable doesn't call setenv() on macOS in .NET 10+
     // so native getenv() (used by libvlccore) won't see it — use setenv() directly
     [DllImport("libSystem.B.dylib")]
@@ -42,8 +40,8 @@ public static class VlcSetup
         var libDir = Path.Combine(AppContext.BaseDirectory, "libvlc", "osx-arm64");
         if (!Directory.Exists(libDir)) return;
 
-        _pluginsDir = Path.Combine(libDir, "plugins");
-        _ = setenv("VLC_PLUGIN_PATH", _pluginsDir, 1);
+        var pluginsDir = Path.Combine(libDir, "plugins");
+        _ = setenv("VLC_PLUGIN_PATH", pluginsDir, 1);
         Core.Initialize(libDir);
     }
 
@@ -55,15 +53,6 @@ public static class VlcSetup
         var nsApp = objc_msgSend_ptr(objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
         objc_msgSend_void_nint(nsApp, sel_registerName("setActivationPolicy:"), 0); // NSApplicationActivationPolicyRegular
         objc_msgSend_void_nint(nsApp, sel_registerName("activateIgnoringOtherApps:"), 1);
-    }
-
-    // completes NSApp initialization so CGMainDisplayID() returns a valid display.
-    // MUST be called from the main thread only.
-    public static void FinishLaunching()
-    {
-        if (!OperatingSystem.IsMacOS()) return;
-        var nsApp = objc_msgSend_ptr(objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
-        objc_msgSend_ptr(nsApp, sel_registerName("finishLaunching"));
     }
 
     // macOS 26 calls [avnWindow window] on AvnWindow objects (an NSWindow subclass).

@@ -14,7 +14,6 @@ class Program
     {
         VlcSetup.Initialize();
         VlcSetup.ActivateApp();
-        VlcSetup.FinishLaunching(); // main-thread-only: makes CGMainDisplayID() valid before Avalonia init
         App.Services = BuildServices();
 
         var extraVlcArgs = new List<string>();

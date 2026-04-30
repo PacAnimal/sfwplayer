@@ -59,4 +59,31 @@ internal static partial class Native
 
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
     internal static extern nint objc_msgSend_nint(IntPtr obj, IntPtr sel);
+
+    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
+    internal static extern ulong objc_msgSend_ulong(IntPtr obj, IntPtr sel);
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct NSRect { public double X, Y, Width, Height; }
+
+    // arm64: structs return via regular objc_msgSend, no _stret variant
+    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
+    internal static extern NSRect objc_msgSend_NSRect(IntPtr obj, IntPtr sel);
+
+    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
+    internal static extern void objc_msgSend_void_NSRect_bool(IntPtr obj, IntPtr sel,
+        NSRect rect, [MarshalAs(UnmanagedType.U1)] bool display);
+
+    // nextEventMatchingMask:untilDate:inMode:dequeue:
+    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
+    internal static extern IntPtr objc_msgSend_nextEvent(IntPtr obj, IntPtr sel,
+        ulong mask, IntPtr expiration, IntPtr mode, [MarshalAs(UnmanagedType.U1)] bool dequeue);
+
+    // stringWithUTF8String: — for creating NSString from a C literal
+    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
+    internal static extern IntPtr objc_msgSend_ptr_utf8(IntPtr obj, IntPtr sel,
+        [MarshalAs(UnmanagedType.LPStr)] string str);
+
+    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
+    internal static extern CGPoint objc_msgSend_CGPoint_ptr(IntPtr obj, IntPtr sel, IntPtr arg);
 }

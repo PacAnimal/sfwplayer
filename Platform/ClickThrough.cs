@@ -155,7 +155,10 @@ public class ClickThrough(Window window, ILogger<ClickThrough> log)
         var pt = MacNative.CGEventGetLocation(evt);
         MacNative.CFRelease(evt);
         var scale = window.RenderScaling;
-        return new PixelPoint((int)(pt.X * scale), (int)(pt.Y * scale));
+        // CGEventGetLocation uses top-left origin with Y increasing downward — no conversion needed
+        return new PixelPoint(
+            (int)(pt.X * scale),
+            (int)(pt.Y * scale));
     }
 
     // ── Linux X11 ────────────────────────────────────────────────────────────
