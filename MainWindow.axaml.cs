@@ -36,6 +36,9 @@ public partial class MainWindow : Window
     private Size _resizeStartSize;
     private WindowEdge _resizeEdge;
 
+    private PixelPoint _videoPressWindowPos;
+    private DateTime _videoPressTime;
+
     private static readonly Transitions FadeOutControls =
     [
         new DoubleTransition { Property = Visual.OpacityProperty, Duration = TimeSpan.FromMilliseconds(200) },
@@ -78,7 +81,8 @@ public partial class MainWindow : Window
             {
                 _isMuted = false;
                 if (_bridge is { } b2) b2.Player.Mute = false;
-                MuteButton.Content = "🔊";
+                VolumeIcon.IsVisible = true;
+                MuteIcon.IsVisible = false;
             }
         };
 
@@ -124,13 +128,14 @@ public partial class MainWindow : Window
 
         _bridge.Player.Playing += (_, _) => Dispatcher.UIThread.Post(() =>
         {
-            PlayPauseButton.Content = "⏸";
+            PlayIcon.IsVisible = false;
+            PauseIcon.IsVisible = true;
             LoadingLabel.IsVisible = false;
         });
         _bridge.Player.Paused += (_, _) =>
-            Dispatcher.UIThread.Post(() => PlayPauseButton.Content = "▶");
+            Dispatcher.UIThread.Post(() => { PlayIcon.IsVisible = true; PauseIcon.IsVisible = false; });
         _bridge.Player.Stopped += (_, _) =>
-            Dispatcher.UIThread.Post(() => PlayPauseButton.Content = "▶");
+            Dispatcher.UIThread.Post(() => { PlayIcon.IsVisible = true; PauseIcon.IsVisible = false; });
 
         _bridge.Player.LengthChanged += (_, ev) =>
             Dispatcher.UIThread.Post(() => { _totalMs = ev.Length; UpdateTimeLabel(); });
@@ -246,7 +251,7 @@ public partial class MainWindow : Window
     }
 
     private bool IsCursorOverPadlock() =>
-        _clickThrough.IsCursorOverRect(new Avalonia.Rect(4, 4, 28, 28));
+        _clickThrough.IsCursorOverRect(new Avalonia.Rect(4, 4, 22, 22));
 
     private void UpdateTimeLabel() =>
         TimeLabel.Text = $"{Fmt(_currentMs)} / {Fmt(_totalMs)}";
@@ -261,6 +266,23 @@ public partial class MainWindow : Window
     {
         if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             BeginMoveDrag(e);
+    }
+
+    private void OnVideoDragPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        _videoPressWindowPos = Position;
+        _videoPressTime = DateTime.UtcNow;
+        BeginMoveDrag(e);
+    }
+
+    private void OnVideoDragReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        var dx = Position.X - _videoPressWindowPos.X;
+        var dy = Position.Y - _videoPressWindowPos.Y;
+        if (Math.Abs(dx) < 4 && Math.Abs(dy) < 4
+            && (DateTime.UtcNow - _videoPressTime).TotalMilliseconds < 300)
+            OnPlayPauseClicked(null, null!);
     }
 
     private void OnResizePressed(object? sender, PointerPressedEventArgs e)
@@ -351,7 +373,8 @@ public partial class MainWindow : Window
         if (_bridge is not { } b) return;
         _isMuted = !_isMuted;
         b.Player.Mute = _isMuted;
-        MuteButton.Content = _isMuted ? "🔇" : "🔊";
+        VolumeIcon.IsVisible = !_isMuted;
+        MuteIcon.IsVisible = _isMuted;
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="SfwPlayer.MainWindow"
         Title="sfwplayer"
-        SystemDecorations="None"
+        WindowDecorations="None"
         Background="Black"
         TransparencyLevelHint="Transparent"
         Topmost="True"
@@ -15,18 +15,20 @@
         <Image x:Name="VideoImage" Stretch="Uniform" IsHitTestVisible="False" />
 
         <!-- full-window drag surface, behind everything -->
-        <Border Background="Transparent" PointerPressed="OnDragPressed" />
+        <Border Background="Transparent"
+                PointerPressed="OnVideoDragPressed"
+                PointerReleased="OnVideoDragReleased" />
 
-        <!-- padlock toggle — top-left, fades in on hover -->
+        <!-- cornerbutton toggle — top-left, fades in on hover -->
         <Button x:Name="PadlockButton"
                 ZIndex="10"
-                Classes="padlock"
+                Classes="cornerbutton"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
                 Margin="4.5,4.5,0,0"
                 Opacity="0"
                 Click="OnPadlockClicked">
-            <Viewbox Width="22" Height="22">
+            <Viewbox Width="16" Height="16">
                 <Grid Width="24" Height="24">
                     <Path x:Name="LockClosedIcon"
                           Stroke="White" StrokeThickness="1.5"
@@ -52,57 +54,106 @@
         <!-- controls — hidden until hover, fades in/out -->
         <Grid x:Name="ControlsGrid" Opacity="0" IsHitTestVisible="False">
 
-            <!-- resize border highlight — ZIndex above the top/bottom bars so all 4 sides are visible -->
-            <Border ZIndex="5" BorderBrush="#60FFFFFF" BorderThickness="4.5" Background="Transparent" IsHitTestVisible="False" />
+            <!-- resize border highlight -->
+            <Border ZIndex="5" BorderBrush="#50FFFFFF" BorderThickness="3" Background="Transparent" IsHitTestVisible="False" />
 
-            <!-- top bar: drag handle + close -->
-            <Border VerticalAlignment="Top" Height="30" Background="#CC000000">
-                <Grid>
-                    <Border Background="Transparent"
-                            HorizontalAlignment="Stretch"
-                            Margin="0,0,40,0"
-                            PointerPressed="OnDragPressed" />
-                    <Button Classes="ctrl"
-                            Content="✕"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Top"
-                            Margin="0,4.5,4.5,0"
-                            Click="OnCloseClicked" />
-                </Grid>
-            </Border>
+            <!-- top bar: full-width drag area -->
+            <Border VerticalAlignment="Top" Height="26" Background="#CC000000"
+                    PointerPressed="OnDragPressed" />
+
+            <!-- close button: top-right, mirrors the cornerbutton -->
+            <Button Classes="cornerbutton"
+                    ZIndex="10"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="0,4.5,4.5,0"
+                    Click="OnCloseClicked">
+                <Viewbox Width="16" Height="16">
+                    <Grid Width="24" Height="24">
+                        <Path Stroke="White" StrokeThickness="1.5"
+                              StrokeLineCap="Round" StrokeJoin="Round"
+                              Data="M6 18L18 6M6 6l12 12" />
+                    </Grid>
+                </Viewbox>
+            </Button>
 
             <!-- bottom bar: seek + controls -->
-            <Border VerticalAlignment="Bottom" Background="#CC000000" Padding="8,5,8,6">
-                <StackPanel Spacing="3">
+            <Border VerticalAlignment="Bottom" Background="#CC000000" Padding="7,4,7,5">
+                <StackPanel Spacing="2">
                     <Slider x:Name="SeekBar"
                             Minimum="0" Maximum="1"
                             SmallChange="0.01" LargeChange="0.05"
-                            Margin="0" />
-                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,4,Auto,Auto">
-                        <Button x:Name="PlayPauseButton"
-                                Grid.Column="0" Classes="ctrl" Content="⏸"
-                                Click="OnPlayPauseClicked" />
+                            Theme="{StaticResource ThinSlider}" />
+                    <Grid ColumnDefinitions="22,Auto,*,Auto,Auto,10,Auto,Auto">
+                        <!-- col 0: spacer that clears the floating play/pause cornerbutton -->
                         <TextBlock x:Name="TimeLabel"
                                    Grid.Column="1" Classes="label"
-                                   Text="0:00 / 0:00" Margin="6,0,0,0" />
+                                   VerticalAlignment="Bottom"
+                                   Text="0:00 / 0:00" Margin="5,0,0,2" />
                         <Button x:Name="MuteButton"
-                                Grid.Column="3" Classes="ctrl" Content="🔊"
-                                Click="OnMuteClicked" />
+                                Grid.Column="3" Classes="ctrl"
+                                Click="OnMuteClicked">
+                            <Viewbox Width="13" Height="13">
+                                <Grid Width="24" Height="24">
+                                    <Path x:Name="VolumeIcon"
+                                          Stroke="White" StrokeThickness="1.5"
+                                          StrokeLineCap="Round" StrokeJoin="Round"
+                                          Data="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+                                    <Path x:Name="MuteIcon"
+                                          Stroke="White" StrokeThickness="1.5"
+                                          StrokeLineCap="Round" StrokeJoin="Round"
+                                          IsVisible="False"
+                                          Data="M17.25 9.75L19.5 12m0 0l2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+                                </Grid>
+                            </Viewbox>
+                        </Button>
                         <Slider x:Name="VolumeSlider"
-                                Grid.Column="4" Width="60"
+                                Grid.Column="4" Width="58"
                                 Minimum="0" Maximum="150" Value="80"
-                                VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="6" Classes="label" Text="◑" Margin="0,0,2,0" />
+                                Theme="{StaticResource ThinSlider}" />
+                        <!-- opacity icon: half-filled circle -->
+                        <Viewbox Grid.Column="6" Width="12" Height="12"
+                                 VerticalAlignment="Center" Margin="0,0,2,0">
+                            <Grid Width="24" Height="24">
+                                <Ellipse Width="18" Height="18"
+                                         Stroke="White" StrokeThickness="2"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Path Fill="White"
+                                      Data="M12 3 L12 21 A9 9 0 0 1 12 3 Z" />
+                            </Grid>
+                        </Viewbox>
                         <Slider x:Name="OpacitySlider"
-                                Grid.Column="7" Width="60"
+                                Grid.Column="7" Width="58"
                                 Minimum="0.1" Maximum="1.0" Value="1.0"
-                                SmallChange="0.05" VerticalAlignment="Center" />
+                                SmallChange="0.05"
+                                Theme="{StaticResource ThinSlider}" />
                     </Grid>
                 </StackPanel>
             </Border>
+
+            <!-- play/pause button: bottom-left, mirrors close button -->
+            <Button x:Name="PlayPauseButton"
+                    Classes="cornerbutton"
+                    ZIndex="10"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Bottom"
+                    Margin="4.5,0,0,4.5"
+                    Click="OnPlayPauseClicked">
+                <Viewbox Width="16" Height="16">
+                    <Grid Width="24" Height="24">
+                        <Path x:Name="PlayIcon"
+                              Fill="White"
+                              Data="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347c-.75.412-1.667-.13-1.667-.986V5.653z" />
+                        <Path x:Name="PauseIcon"
+                              Fill="White"
+                              IsVisible="False"
+                              Data="M6 4.5 H10.5 V19.5 H6 Z M13.5 4.5 H18 V19.5 H13.5 Z" />
+                    </Grid>
+                </Viewbox>
+            </Button>
         </Grid>
 
-        <!-- resize handles — ZIndex=20 wins over padlock (10) and controls, hidden until hover -->
+        <!-- resize handles — ZIndex=20 wins over cornerbutton (10) and controls, hidden until hover -->
         <Grid x:Name="ResizeHandles" ZIndex="20" IsVisible="False">
             <!-- NW: L-shaped — horizontal arm along top, vertical arm down left -->
             <Rectangle Width="30" Height="4.5" HorizontalAlignment="Left" VerticalAlignment="Top"

@@ -1,6 +1,41 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="SfwPlayer.App">
+    <Application.Resources>
+        <ControlTheme x:Key="ThinSlider" TargetType="Slider">
+            <Setter Property="MinHeight" Value="20" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Grid MinHeight="20">
+                        <Border Height="2" VerticalAlignment="Center"
+                                Background="#484848" CornerRadius="1" />
+                        <Track Name="PART_Track"
+                               Minimum="{TemplateBinding Minimum}"
+                               Maximum="{TemplateBinding Maximum}"
+                               Value="{TemplateBinding Value, Mode=TwoWay}"
+                               Orientation="Horizontal"
+                               Margin="4,0">
+                            <Track.Thumb>
+                                <Thumb>
+                                    <Thumb.Template>
+                                        <ControlTemplate>
+                                            <Border Width="11" Height="18" Background="Transparent">
+                                                <Border Width="5" Height="13" Background="White"
+                                                        CornerRadius="1"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center" />
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter>
+        </ControlTheme>
+    </Application.Resources>
     <Application.Styles>
         <FluentTheme />
         <Style Selector="Button.ctrl">
@@ -19,7 +54,7 @@
         <Style Selector="Button.ctrl:pressed /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="#60FFFFFF" />
         </Style>
-        <Style Selector="Button.padlock">
+        <Style Selector="Button.cornerbutton">
             <Setter Property="Background" Value="#B0000000" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="Padding" Value="2" />
@@ -27,11 +62,11 @@
             <Setter Property="MinWidth" Value="0" />
             <Setter Property="MinHeight" Value="0" />
         </Style>
-        <Style Selector="Button.padlock:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Style Selector="Button.cornerbutton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="#40FFFFFF" />
         </Style>
         <Style Selector="TextBlock.label">
-            <Setter Property="Foreground" Value="#BBBBBBBB" />
+            <Setter Property="Foreground" Value="#AAAAAA" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
