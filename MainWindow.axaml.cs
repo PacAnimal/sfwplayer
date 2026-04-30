@@ -313,8 +313,8 @@ public partial class MainWindow : Window
         if (northEdge) { newH -= dy / scale; newY += dy; }
         if (southEdge) { newH += dy / scale; }
 
-        const double minW = 160;
-        const double minH = 90;
+        const double minW = 240;
+        const double minH = 135;
         if (newW < minW)
         {
             if (westEdge) newX = _moveStartPos.X + (int)((_resizeStartSize.Width - minW) * scale);
