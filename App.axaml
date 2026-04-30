@@ -7,7 +7,7 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Template">
                 <ControlTemplate>
-                    <Grid MinHeight="20">
+                    <Grid MinHeight="20" Background="Transparent">
                         <Border Height="2" VerticalAlignment="Center"
                                 Background="#484848" CornerRadius="1" />
                         <Track Name="PART_Track"

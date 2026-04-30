@@ -6,6 +6,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SfwPlayer.Platform;
@@ -25,6 +26,7 @@ public partial class MainWindow : Window
     private bool _isLocked;
     private bool _isHovering;
     private bool _isSeeking;
+    private bool _seekTrackDragging;
     private double _targetOpacity = 1.0;
     private long _totalMs;
     private long _currentMs;
@@ -62,18 +64,49 @@ public partial class MainWindow : Window
         _pollTimer.Tick += OnPollTick;
         _resizeTimer.Tick += OnResizeTick;
 
-        SeekBar.AddHandler(PointerPressedEvent, (_, _) => _isSeeking = true, RoutingStrategies.Tunnel);
+        SeekBar.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            _isSeeking = true;
+            if (!IsThumbPress(e))
+            {
+                _seekTrackDragging = true;
+                SeekBar.Value = SliderValueAt(SeekBar, e.GetCurrentPoint(SeekBar).Position.X);
+                e.Pointer.Capture(SeekBar);
+            }
+        }, RoutingStrategies.Tunnel);
+        SeekBar.AddHandler(PointerMovedEvent, (_, e) =>
+        {
+            if (_seekTrackDragging)
+                SeekBar.Value = SliderValueAt(SeekBar, e.GetCurrentPoint(SeekBar).Position.X);
+        }, RoutingStrategies.Tunnel | RoutingStrategies.Direct);
         SeekBar.AddHandler(PointerReleasedEvent, (_, _) =>
         {
+            if (!_isSeeking) return;
             _isSeeking = false;
+            _seekTrackDragging = false;
             if (_bridge is { } b) b.Player.Position = (float)SeekBar.Value;
-        }, RoutingStrategies.Tunnel);
+        }, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
         SeekBar.ValueChanged += (_, e) =>
         {
             if (_isSeeking && _totalMs > 0)
                 TimeLabel.Text = $"{Fmt((long)(e.NewValue * _totalMs))} / {Fmt(_totalMs)}";
         };
 
+        bool volTrackDragging = false;
+        VolumeSlider.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (IsThumbPress(e)) return;
+            volTrackDragging = true;
+            VolumeSlider.Value = SliderValueAt(VolumeSlider, e.GetCurrentPoint(VolumeSlider).Position.X);
+            e.Pointer.Capture(VolumeSlider);
+        }, RoutingStrategies.Tunnel);
+        VolumeSlider.AddHandler(PointerMovedEvent, (_, e) =>
+        {
+            if (volTrackDragging)
+                VolumeSlider.Value = SliderValueAt(VolumeSlider, e.GetCurrentPoint(VolumeSlider).Position.X);
+        }, RoutingStrategies.Tunnel | RoutingStrategies.Direct);
+        VolumeSlider.AddHandler(PointerReleasedEvent, (_, _) => volTrackDragging = false,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
         VolumeSlider.ValueChanged += (_, e) =>
         {
             if (_bridge is { } b) b.Player.Volume = (int)e.NewValue;
@@ -86,14 +119,29 @@ public partial class MainWindow : Window
             }
         };
 
+        bool opTrackDragging = false;
+        OpacitySlider.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (IsThumbPress(e)) return;
+            opTrackDragging = true;
+            OpacitySlider.Value = SliderValueAt(OpacitySlider, e.GetCurrentPoint(OpacitySlider).Position.X);
+            e.Pointer.Capture(OpacitySlider);
+        }, RoutingStrategies.Tunnel);
+        OpacitySlider.AddHandler(PointerMovedEvent, (_, e) =>
+        {
+            if (opTrackDragging)
+                OpacitySlider.Value = SliderValueAt(OpacitySlider, e.GetCurrentPoint(OpacitySlider).Position.X);
+        }, RoutingStrategies.Tunnel | RoutingStrategies.Direct);
+        OpacitySlider.AddHandler(PointerReleasedEvent, (_, _) =>
+        {
+            opTrackDragging = false;
+            if (_isHovering && !_isLocked) Opacity = 1.0;
+        }, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
         OpacitySlider.ValueChanged += (_, e) =>
         {
             _targetOpacity = e.NewValue;
             Opacity = e.NewValue;
         };
-        OpacitySlider.AddHandler(PointerReleasedEvent,
-            (_, _) => { if (_isHovering && !_isLocked) Opacity = 1.0; },
-            RoutingStrategies.Tunnel);
 
         KeyDown += OnKeyDown;
         Opened += OnOpened;
@@ -261,6 +309,19 @@ public partial class MainWindow : Window
         var t = TimeSpan.FromMilliseconds(Math.Max(0, ms));
         return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
     }
+
+    private static double SliderValueAt(Slider slider, double x)
+    {
+        const double margin = 4;
+        const double thumbHalf = 5.5; // half of the 11px thumb width in ThinSlider
+        var offset = margin + thumbHalf;
+        var usable = slider.Bounds.Width - 2 * offset;
+        if (usable <= 0) return slider.Value;
+        return Math.Clamp(slider.Minimum + (x - offset) / usable * (slider.Maximum - slider.Minimum), slider.Minimum, slider.Maximum);
+    }
+
+    private static bool IsThumbPress(PointerPressedEventArgs e) =>
+        e.Source is Visual v && (v is Thumb || v.FindAncestorOfType<Thumb>() != null);
 
     private void OnDragPressed(object? sender, PointerPressedEventArgs e)
     {
