@@ -83,6 +83,60 @@ public class ClickThrough(Window window, ILogger<ClickThrough> log)
             ? MacNative.objc_msgSend_ptr(_handle, MacNative.sel_registerName("window"))
             : IntPtr.Zero;
 
+    // captured at resize start — avoids absolute Avalonia→NSWindow coordinate conversion
+    private MacNative.NSRect _resizeStartNSFrame;
+    private int _resizeStartAvX, _resizeStartAvY;
+    private double _resizeStartAvW, _resizeStartAvH;
+    private bool _hasResizeStartFrame;
+
+    // call once from OnResizePressed to snapshot the current NSWindow frame
+    public void BeginResize(PixelPoint pos, Size size)
+    {
+        _resizeStartAvX = pos.X; _resizeStartAvY = pos.Y;
+        _resizeStartAvW = size.Width; _resizeStartAvH = size.Height;
+        _hasResizeStartFrame = false;
+        if (!OperatingSystem.IsMacOS() || _handle == IntPtr.Zero) return;
+        var nsWin = GetNSWindow();
+        if (nsWin == IntPtr.Zero) return;
+        _resizeStartNSFrame = MacNative.objc_msgSend_NSRect(nsWin, MacNative.sel_registerName("frame"));
+        _hasResizeStartFrame = true;
+    }
+
+    // applies position + size atomically; on macOS applies deltas to the snapshotted NSWindow
+    // frame so we never need to convert Avalonia screen coords to NSWindow screen coords
+    public void MoveResize(int newX, int newY, double newW, double newH)
+    {
+        if (OperatingSystem.IsMacOS() && _hasResizeStartFrame && _handle != IntPtr.Zero)
+        {
+            var nsWin = GetNSWindow();
+            if (nsWin != IntPtr.Zero)
+            {
+                var scale = window.RenderScaling;
+                // delta in Avalonia coords → delta in NSWindow points (logical pixels = points on macOS)
+                var dX = (newX - _resizeStartAvX) / scale; // +right in both systems
+                var dY = (newY - _resizeStartAvY) / scale; // +down in Avalonia, but NSWindow Y is +up
+                var dW = newW - _resizeStartAvW;
+                var dH = newH - _resizeStartAvH;
+                // NSWindow.Y is the bottom edge (Y-up). derivation:
+                //   newNsY = startNsY - dY - dH
+                // because moving the top-left down (+dY) moves the bottom down too,
+                // and increasing height also moves the bottom down (in Y-up space, both subtract from Y)
+                var frame = new MacNative.NSRect
+                {
+                    X = _resizeStartNSFrame.X + dX,
+                    Y = _resizeStartNSFrame.Y - dY - dH,
+                    Width = _resizeStartNSFrame.Width + dW,
+                    Height = _resizeStartNSFrame.Height + dH,
+                };
+                MacNative.objc_msgSend_void_NSRect_bool(nsWin, MacNative.sel_registerName("setFrame:display:"), frame, true);
+                return;
+            }
+        }
+        window.Width = newW;
+        window.Height = newH;
+        window.Position = new PixelPoint(newX, newY);
+    }
+
     // uses NSWindow.mouseLocationOutsideOfEventStream which returns cursor position
     // in the window's local coordinate space — no coordinate conversion needed.
     public bool IsCursorOverWindow()

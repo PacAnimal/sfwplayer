@@ -30,11 +30,11 @@ public partial class MainWindow : Window
     private long _currentMs;
 
     private readonly DispatcherTimer _pollTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
-    private readonly DispatcherTimer _moveTimer = new() { Interval = TimeSpan.FromMilliseconds(8) };
-    private PixelPoint _moveStartCursor;
-    private PixelPoint _moveStartPos;
-    private WindowEdge _resizeEdge;
+    private readonly DispatcherTimer _resizeTimer = new() { Interval = TimeSpan.FromMilliseconds(8) };
+    private PixelPoint _resizeStartCursor;
+    private PixelPoint _resizeStartPos;
     private Size _resizeStartSize;
+    private WindowEdge _resizeEdge;
 
     private static readonly Transitions FadeOutControls =
     [
@@ -53,7 +53,7 @@ public partial class MainWindow : Window
         _clickThrough = new ClickThrough(this, services.GetRequiredService<ILogger<ClickThrough>>());
 
         _pollTimer.Tick += OnPollTick;
-        _moveTimer.Tick += OnMoveTick;
+        _resizeTimer.Tick += OnResizeTick;
 
         SeekBar.AddHandler(PointerPressedEvent, (_, _) => _isSeeking = true, RoutingStrategies.Tunnel);
         SeekBar.AddHandler(PointerReleasedEvent, (_, _) =>
@@ -279,27 +279,28 @@ public partial class MainWindow : Window
         };
         if (!edge.HasValue) return;
         _resizeEdge = edge.Value;
-        _moveStartCursor = _clickThrough.GetCursorPosition();
-        _moveStartPos = Position;
+        _resizeStartCursor = _clickThrough.GetCursorPosition();
+        _resizeStartPos = Position;
         _resizeStartSize = ClientSize;
-        _moveTimer.Start();
+        _clickThrough.BeginResize(_resizeStartPos, _resizeStartSize);
+        _resizeTimer.Start();
     }
 
-    private void OnMoveTick(object? sender, EventArgs e)
+    private void OnResizeTick(object? sender, EventArgs e)
     {
         if (!_clickThrough.IsLeftButtonHeld())
         {
-            _moveTimer.Stop();
+            _resizeTimer.Stop();
             return;
         }
 
         var cursor = _clickThrough.GetCursorPosition();
-        var dx = cursor.X - _moveStartCursor.X;
-        var dy = cursor.Y - _moveStartCursor.Y;
+        var dx = cursor.X - _resizeStartCursor.X;
+        var dy = cursor.Y - _resizeStartCursor.Y;
         var scale = RenderScaling;
 
-        var newX = _moveStartPos.X;
-        var newY = _moveStartPos.Y;
+        var newX = _resizeStartPos.X;
+        var newY = _resizeStartPos.Y;
         var newW = _resizeStartSize.Width;
         var newH = _resizeStartSize.Height;
 
@@ -317,18 +318,16 @@ public partial class MainWindow : Window
         const double minH = 135;
         if (newW < minW)
         {
-            if (westEdge) newX = _moveStartPos.X + (int)((_resizeStartSize.Width - minW) * scale);
+            if (westEdge) newX = _resizeStartPos.X + (int)((_resizeStartSize.Width - minW) * scale);
             newW = minW;
         }
         if (newH < minH)
         {
-            if (northEdge) newY = _moveStartPos.Y + (int)((_resizeStartSize.Height - minH) * scale);
+            if (northEdge) newY = _resizeStartPos.Y + (int)((_resizeStartSize.Height - minH) * scale);
             newH = minH;
         }
 
-        Width = newW;
-        Height = newH;
-        Position = new PixelPoint(newX, newY);
+        _clickThrough.MoveResize(newX, newY, newW, newH);
     }
 
     private void OnPadlockClicked(object? sender, RoutedEventArgs e)
@@ -374,7 +373,7 @@ public partial class MainWindow : Window
 
         _cts.Cancel();
         _pollTimer.Stop();
-        _moveTimer.Stop();
+        _resizeTimer.Stop();
 
         if (_bridge is { } b)
             await b.StopAsync();
