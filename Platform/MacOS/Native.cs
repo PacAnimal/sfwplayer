@@ -86,4 +86,11 @@ internal static partial class Native
 
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
     internal static extern CGPoint objc_msgSend_CGPoint_ptr(IntPtr obj, IntPtr sel, IntPtr arg);
+
+    // POSIX fd primitives
+    internal const int O_WRONLY = 1;
+    [DllImport("libSystem.B.dylib")] internal static extern int open([MarshalAs(UnmanagedType.LPStr)] string path, int flags);
+    [DllImport("libSystem.B.dylib")] internal static extern int dup(int fd);
+    [DllImport("libSystem.B.dylib")] internal static extern int dup2(int oldfd, int newfd);
+    [DllImport("libSystem.B.dylib")] internal static extern int close(int fd);
 }

@@ -5,6 +5,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using LibVLCSharp.Shared;
+using SfwPlayer.Platform.MacOS;
 
 namespace SfwPlayer.Services;
 
@@ -193,11 +194,32 @@ public sealed class VlcVideoBridge : IDisposable
         Player.Play();
     }
 
+    // VLC 3.x: FFmpeg's picture pool teardown races with frame-decode threads during Stop(),
+    // printing harmless get_buffer() errors. Suppress fd 2 for the duration of Stop() only.
+    public Task StopAsync() => Task.Run(() =>
+    {
+        int saved = -1;
+        if (OperatingSystem.IsMacOS())
+        {
+            var devNull = Native.open("/dev/null", Native.O_WRONLY);
+            saved = Native.dup(2);
+            Native.dup2(devNull, 2);
+            Native.close(devNull);
+        }
+        try { Player.Stop(); }
+        finally
+        {
+            if (saved >= 0) { Native.dup2(saved, 2); Native.close(saved); }
+        }
+    });
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        Player.Stop();
+        // only stop if not already stopped (StopAsync may have already done it)
+        if (Player.State is not (VLCState.Stopped or VLCState.NothingSpecial or VLCState.Error))
+            Player.Stop();
         Player.Dispose();
         _media?.Dispose();
         _vlc.Dispose();

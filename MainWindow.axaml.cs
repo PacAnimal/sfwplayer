@@ -364,11 +364,22 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnClosing(object? sender, WindowClosingEventArgs e)
+    private bool _closingStarted;
+
+    private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
+        if (_closingStarted) return;
+        _closingStarted = true;
+        e.Cancel = true;
+
         _cts.Cancel();
         _pollTimer.Stop();
         _moveTimer.Stop();
+
+        if (_bridge is { } b)
+            await b.StopAsync();
+
         _bridge?.Dispose();
+        Close();
     }
 }
