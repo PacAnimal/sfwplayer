@@ -55,17 +55,18 @@ public static class VlcSetup
         objc_msgSend_void_nint(nsApp, sel_registerName("activateIgnoringOtherApps:"), 1);
     }
 
-    // macOS 26 calls [avnWindow window] on AvnWindow objects (an NSWindow subclass).
-    // NSWindow has no 'window' method so this crashes. Inject 'window -> self' at runtime.
+    // macOS 26 calls [avnWindow window] and [avnWindow w] on AvnWindow objects (an NSWindow subclass).
+    // NSWindow has no 'window' or 'w' method so this crashes. Inject both -> self at runtime.
     // Must be called after libAvaloniaNative.dylib registers the AvnWindow class.
     public static void PatchAvnWindow()
     {
         if (!OperatingSystem.IsMacOS()) return;
         var cls = objc_getClass("AvnWindow");
         if (cls == IntPtr.Zero) return;
-        var sel = sel_registerName("window");
         _windowMethodImpl = (self, _) => self;
-        class_addMethod(cls, sel, Marshal.GetFunctionPointerForDelegate(_windowMethodImpl), "@16@0:8");
+        var imp = Marshal.GetFunctionPointerForDelegate(_windowMethodImpl);
+        class_addMethod(cls, sel_registerName("window"), imp, "@16@0:8");
+        class_addMethod(cls, sel_registerName("w"), imp, "@16@0:8");
     }
 
     public static string[] GetArgs() => [];

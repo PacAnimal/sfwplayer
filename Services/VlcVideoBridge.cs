@@ -196,13 +196,13 @@ public sealed class VlcVideoBridge : IDisposable
         {
             var devNull = Native.open("/dev/null", Native.O_WRONLY);
             saved = Native.dup(2);
-            Native.dup2(devNull, 2);
-            Native.close(devNull);
+            _ = Native.dup2(devNull, 2);
+            _ = Native.close(devNull);
         }
         try { Player.Stop(); }
         finally
         {
-            if (saved >= 0) { Native.dup2(saved, 2); Native.close(saved); }
+            if (saved >= 0) { _ = Native.dup2(saved, 2); _ = Native.close(saved); }
         }
     });
 

@@ -48,7 +48,13 @@ class Program
             c.TimestampFormat = null;
             c.TimestampUtc = false;
         });
+        services.AddSingleton<CookieStore>();
+        services.AddSingleton<InnerTubeService>();
         services.AddSingleton<YoutubeService>();
-        return services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
+
+        // load any persisted cookies immediately
+        provider.GetRequiredService<CookieStore>().TryLoad();
+        return provider;
     }
 }

@@ -16,6 +16,7 @@
   <ItemGroup>
     <Compile Remove="Tests/**" />
   </ItemGroup>
+
   <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
     <Content Include="libvlc/osx-arm64/**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

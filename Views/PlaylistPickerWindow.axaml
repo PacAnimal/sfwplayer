@@ -1,0 +1,72 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:SfwPlayer.Models"
+        x:Class="SfwPlayer.Views.PlaylistPickerWindow"
+        Title="sfwplayer — Select Playlist"
+        Background="#1A1A1A"
+        Width="700" Height="500"
+        MinWidth="500" MinHeight="350"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+    <DockPanel>
+
+        <!-- status bar -->
+        <Border DockPanel.Dock="Top" Background="#111111" Padding="12,8">
+            <TextBlock x:Name="StatusLabel" Text="" Foreground="#AAAAAA"
+                       VerticalAlignment="Center" IsVisible="False" />
+        </Border>
+
+        <!-- action buttons -->
+        <Border DockPanel.Dock="Bottom" Background="#111111" Padding="12,8">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button x:Name="SignOutButton" Content="Sign out"
+                        Click="OnSignOutClicked" Padding="10,5" IsVisible="False" />
+                <Button x:Name="PlayAllButton" Content="Play All"
+                        Click="OnPlayAllClicked" IsEnabled="False" Padding="12,5" />
+                <Button x:Name="ShuffleButton" Content="Shuffle &amp; Play"
+                        Click="OnShuffleClicked" IsEnabled="False" Padding="12,5" />
+                <Button Content="Cancel" Click="OnCancelClicked" Padding="12,5" />
+            </StackPanel>
+        </Border>
+
+        <!-- playlist | video split -->
+        <Grid ColumnDefinitions="240,Auto,*">
+
+            <ListBox x:Name="PlaylistList"
+                     SelectionChanged="OnPlaylistSelected"
+                     Background="#141414"
+                     Padding="0">
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type models:PlaylistInfo}">
+                        <StackPanel Margin="10,6">
+                            <TextBlock Text="{Binding Title}"
+                                       Foreground="White" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding VideoCount, StringFormat='{}{0} videos'}"
+                                       Foreground="#60FFFFFF" FontSize="11" Margin="0,1,0,0" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <Rectangle Grid.Column="1" Width="1" Fill="#2A2A2A" />
+
+            <ListBox x:Name="VideoList"
+                     Grid.Column="2"
+                     Background="#1A1A1A"
+                     Padding="0">
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type models:VideoInfo}">
+                        <TextBlock Text="{Binding Title}"
+                                   Foreground="#DDDDDD"
+                                   Margin="10,7"
+                                   TextTrimming="CharacterEllipsis" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+        </Grid>
+    </DockPanel>
+
+</Window>

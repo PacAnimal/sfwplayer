@@ -9,17 +9,24 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SfwPlayer.Models;
 using SfwPlayer.Platform;
 using SfwPlayer.Services;
+using SfwPlayer.Views;
 
 namespace SfwPlayer;
 
 public partial class MainWindow : Window
 {
     private readonly ILogger<MainWindow> _log;
+    private readonly IServiceProvider _services;
     private readonly YoutubeService _youtube;
     private readonly ClickThrough _clickThrough;
     private readonly CancellationTokenSource _cts = new();
+
+    private List<VideoInfo> _queue = [];
+    private int _queueIndex = -1;
+    private CancellationTokenSource _playCts = new();
 
     private VlcVideoBridge? _bridge;
     private bool _isMuted;
@@ -57,6 +64,7 @@ public partial class MainWindow : Window
     public MainWindow(IServiceProvider services)
     {
         InitializeComponent();
+        _services = services;
         _log = services.GetRequiredService<ILogger<MainWindow>>();
         _youtube = services.GetRequiredService<YoutubeService>();
         _clickThrough = new ClickThrough(this, services.GetRequiredService<ILogger<ClickThrough>>());
@@ -155,16 +163,84 @@ public partial class MainWindow : Window
         _pollTimer.Start();
         InitializeBridge();
 
+        if (App.OverrideUrl != null)
+        {
+            LoadingLabel.Text = "Loading...";
+            try
+            {
+                var url = await _youtube.GetStreamUrl(App.OverrideUrl, _cts.Token);
+                _bridge!.Play(url);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "failed to load video");
+                ShowHint();
+            }
+        }
+    }
+
+    private async Task PlayQueueItemAsync(int index)
+    {
+        if (index < 0 || index >= _queue.Count) return;
+
+        _playCts.Cancel();
+        _playCts = new CancellationTokenSource();
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, _playCts.Token);
+
+        _queueIndex = index;
+        var video = _queue[index];
+
+        TrackTitle.Text = video.Title;
+        TrackTitle.IsVisible = true;
+        LoadingLabel.Text = "Loading...";
+        LoadingLabel.IsVisible = true;
+        UpdateQueueMenuItems();
+
         try
         {
-            var url = await _youtube.GetStreamUrl(App.OverrideUrl, _cts.Token);
+            var url = await _youtube.GetStreamUrl(video.Id, linked.Token);
             _bridge!.Play(url);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            _log.LogError(ex, "failed to load video");
+            _log.LogError(ex, "failed to load video {id}", video.Id);
+            LoadingLabel.IsVisible = false;
         }
+    }
+
+    private void UpdateQueueMenuItems()
+    {
+        PrevMenuItem.IsEnabled = _queue.Count > 0 && _queueIndex > 0;
+        NextMenuItem.IsEnabled = _queue.Count > 0 && _queueIndex < _queue.Count - 1;
+    }
+
+    private async void OnSelectPlaylistMenuClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var picker = new PlaylistPickerWindow(_services);
+        var result = await picker.ShowDialog<PlaybackRequest?>(this);
+        if (result == null) return;
+
+        var videos = result.Shuffle
+            ? [.. result.Videos.OrderBy(_ => Random.Shared.Next())]
+            : result.Videos;
+
+        _queue = videos;
+        _queueIndex = -1;
+        await PlayQueueItemAsync(0);
+    }
+
+    private void OnPrevClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_queueIndex > 0)
+            _ = PlayQueueItemAsync(_queueIndex - 1);
+    }
+
+    private void OnNextClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_queueIndex < _queue.Count - 1)
+            _ = PlayQueueItemAsync(_queueIndex + 1);
     }
 
     private void InitializeBridge()
@@ -205,7 +281,14 @@ public partial class MainWindow : Window
                             ?.Shutdown(0));
                     return;
                 }
-                if (!_cts.IsCancellationRequested) _bridge.Replay();
+                if (_cts.IsCancellationRequested) return;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (_queue.Count > 0 && _queueIndex < _queue.Count - 1)
+                        _ = PlayQueueItemAsync(_queueIndex + 1);
+                    else
+                        ShowHint();
+                });
             });
     }
 
@@ -300,6 +383,13 @@ public partial class MainWindow : Window
 
     private bool IsCursorOverPadlock() =>
         _clickThrough.IsCursorOverRect(new Avalonia.Rect(4, 4, 22, 22));
+
+    private void ShowHint()
+    {
+        TrackTitle.IsVisible = false;
+        LoadingLabel.Text = "Right-click to select a playlist";
+        LoadingLabel.IsVisible = true;
+    }
 
     private void UpdateTimeLabel() =>
         TimeLabel.Text = $"{Fmt(_currentMs)} / {Fmt(_totalMs)}";
@@ -456,6 +546,7 @@ public partial class MainWindow : Window
         e.Cancel = true;
 
         _cts.Cancel();
+        _playCts.Cancel();
         _pollTimer.Stop();
         _resizeTimer.Stop();
 

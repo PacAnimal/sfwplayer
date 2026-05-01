@@ -4,3 +4,4 @@ obj/
 *.user
 test-output/
 CLAUDE.md
+google-oauth.json

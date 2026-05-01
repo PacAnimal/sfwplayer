@@ -11,6 +11,14 @@
         CanResize="True">
 
     <Grid>
+        <Grid.ContextMenu>
+            <ContextMenu x:Name="AppMenu">
+                <MenuItem x:Name="SelectPlaylistMenuItem" Header="Select Playlist..." Click="OnSelectPlaylistMenuClicked" />
+                <Separator />
+                <MenuItem x:Name="PrevMenuItem" Header="Previous" Click="OnPrevClicked" IsEnabled="False" />
+                <MenuItem x:Name="NextMenuItem" Header="Next" Click="OnNextClicked" IsEnabled="False" />
+            </ContextMenu>
+        </Grid.ContextMenu>
         <!-- video surface — inside Skia, scales with window, no hit-test -->
         <Image x:Name="VideoImage" Stretch="Uniform" IsHitTestVisible="False" />
 
@@ -43,9 +51,9 @@
             </Viewbox>
         </Button>
 
-        <!-- loading indicator -->
+        <!-- idle hint / loading indicator -->
         <TextBlock x:Name="LoadingLabel"
-                   Text="Loading..."
+                   Text="Right-click to select a playlist"
                    Foreground="#80FFFFFF"
                    FontSize="14"
                    HorizontalAlignment="Center"
@@ -57,9 +65,17 @@
             <!-- resize border highlight -->
             <Border ZIndex="5" BorderBrush="#50FFFFFF" BorderThickness="3" Background="Transparent" IsHitTestVisible="False" />
 
-            <!-- top bar: full-width drag area -->
+            <!-- top bar: full-width drag area with optional track title -->
             <Border VerticalAlignment="Top" Height="26" Background="#CC000000"
-                    PointerPressed="OnDragPressed" />
+                    PointerPressed="OnDragPressed">
+                <TextBlock x:Name="TrackTitle"
+                           Foreground="#80FFFFFF" FontSize="11"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           IsHitTestVisible="False"
+                           IsVisible="False"
+                           Margin="28,0" />
+            </Border>
 
             <!-- close button: top-right, mirrors the cornerbutton -->
             <Button Classes="cornerbutton"
