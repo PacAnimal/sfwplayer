@@ -13,6 +13,7 @@ public partial class PlaylistPickerWindow : Window
     private readonly InnerTubeService _innerTube;
     private readonly CookieStore _cookies;
     private readonly ILogger<PlaylistPickerWindow> _log;
+    private readonly CancellationTokenSource _cts = new();
 
     public PlaylistPickerWindow(IServiceProvider services)
     {
@@ -20,6 +21,7 @@ public partial class PlaylistPickerWindow : Window
         _innerTube = services.GetRequiredService<InnerTubeService>();
         _cookies = services.GetRequiredService<CookieStore>();
         _log = services.GetRequiredService<ILogger<PlaylistPickerWindow>>();
+        Closed += (_, _) => _cts.Cancel();
         Opened += OnOpened;
     }
 
@@ -27,7 +29,7 @@ public partial class PlaylistPickerWindow : Window
     {
         if (!_cookies.HasCookies)
         {
-            ShowStatus("Opening YouTube sign-in...");
+            ShowStatus("Sign in to YouTube to continue...");
             var ok = await SignInAsync();
             if (!ok) { ShowStatus("Sign-in cancelled or failed."); return; }
         }
@@ -43,8 +45,11 @@ public partial class PlaylistPickerWindow : Window
             return false;
         }
 
+        var prevTitle = Title;
+        Title = "SfwPlayer — Sign in to YouTube";
         var nsView = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
-        var cookies = await AppleWebAuth.SignInAsync(nsView);
+        var cookies = await AppleWebAuth.SignInInWindowAsync(nsView, _cts.Token);
+        Title = prevTitle;
         if (cookies == null || cookies.Count == 0) return false;
         _cookies.Save(cookies);
         return _cookies.HasCookies;
@@ -100,6 +105,7 @@ public partial class PlaylistPickerWindow : Window
     private void OnSignOutClicked(object? sender, RoutedEventArgs e)
     {
         _cookies.Clear();
+        AppleWebAuth.ClearWebKitSession();
         PlaylistList.ItemsSource = null;
         VideoList.ItemsSource = null;
         PlayAllButton.IsEnabled = false;
@@ -120,7 +126,7 @@ public partial class PlaylistPickerWindow : Window
         Close(new PlaybackRequest(videos, true));
     }
 
-    private void OnCancelClicked(object? sender, RoutedEventArgs e) => Close(null);
+    private void OnCancelClicked(object? sender, RoutedEventArgs e) { _cts.Cancel(); Close(null); }
 
     private void ShowStatus(string text)
     {

@@ -30,6 +30,10 @@ internal static class AppleWebAuth
     private static readonly unsafe BlockDescriptor* _cookieDesc;
     private static readonly IntPtr _cookieBlockPtr;
 
+    private static readonly unsafe BlockLiteral* _noopBlock;
+    private static readonly unsafe BlockDescriptor* _noopDesc;
+    private static readonly IntPtr _noopBlockPtr;
+
     // kept for test: SfwAuthContext registered so tests can assert ObjC class registration
     private static readonly IntPtr _contextClass;
     // SfwWebDelegate implements WKNavigationDelegate + NSWindowDelegate
@@ -73,6 +77,18 @@ internal static class AppleWebAuth
         _cookieBlock->Invoke = (IntPtr)(delegate* unmanaged[Cdecl]<BlockLiteral*, IntPtr, void>)&OnGetCookies;
         _cookieBlock->Descriptor = (IntPtr)_cookieDesc;
         _cookieBlockPtr = (IntPtr)_cookieBlock;
+
+        _noopDesc = (BlockDescriptor*)NativeMemory.Alloc((nuint)sizeof(BlockDescriptor));
+        _noopDesc->Reserved = 0;
+        _noopDesc->Size = (nuint)sizeof(BlockLiteral);
+
+        _noopBlock = (BlockLiteral*)NativeMemory.Alloc((nuint)sizeof(BlockLiteral));
+        _noopBlock->Isa = blockIsa;
+        _noopBlock->Flags = 1 << 28; // BLOCK_IS_GLOBAL
+        _noopBlock->Reserved = 0;
+        _noopBlock->Invoke = (IntPtr)(delegate* unmanaged[Cdecl]<BlockLiteral*, void>)&NoopBlockInvoke;
+        _noopBlock->Descriptor = (IntPtr)_noopDesc;
+        _noopBlockPtr = (IntPtr)_noopBlock;
 
         var nso = objc_getClass("NSObject");
 
@@ -135,6 +151,20 @@ internal static class AppleWebAuth
         _cookieTcs?.TrySetResult(ParseNsArray(nsArray));
     }
 
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static unsafe void NoopBlockInvoke(BlockLiteral* block) { }
+
+    // clears the shared WKWebsiteDataStore so the next sign-in shows a fresh Google login
+    internal static void ClearWebKitSession()
+    {
+        if (!OperatingSystem.IsMacOS()) return;
+        var dataStore = msg_ptr(objc_getClass("WKWebsiteDataStore"), sel_registerName("defaultDataStore"));
+        var dataTypes = msg_ptr(objc_getClass("WKWebsiteDataStore"), sel_registerName("allWebsiteDataTypes"));
+        var distantPast = msg_ptr(objc_getClass("NSDate"), sel_registerName("distantPast"));
+        msg_void_p_p_p(dataStore, sel_registerName("removeDataOfTypes:modifiedSince:completionHandler:"),
+            dataTypes, distantPast, _noopBlockPtr);
+    }
+
     // nsView is Avalonia's platform handle (NSView*); obtains NSWindow via [nsView window]
     internal static async Task<List<Cookie>?> SignInAsync(IntPtr nsView, CancellationToken ct = default)
     {
@@ -142,6 +172,64 @@ internal static class AppleWebAuth
         var nsWindow = msg_ptr(nsView, sel_registerName("window"));
         if (nsWindow == IntPtr.Zero) return null;
         return await SignInCoreAsync(ct);
+    }
+
+    // embeds a WKWebView directly into the given nsView's NSWindow — no separate auth window
+    internal static async Task<List<Cookie>?> SignInInWindowAsync(IntPtr nsView, CancellationToken ct = default)
+    {
+        if (!OperatingSystem.IsMacOS()) return null;
+        var nsWindow = msg_ptr(nsView, sel_registerName("window"));
+        if (nsWindow == IntPtr.Zero) return null;
+
+        _completionPredicate = url =>
+            url.Contains("youtube.com", StringComparison.OrdinalIgnoreCase) &&
+            !url.Contains("accounts.google.com", StringComparison.OrdinalIgnoreCase);
+        return await NavigateInWindowAsync(nsWindow, GoogleSignInUrl, ct);
+    }
+
+    private static async Task<List<Cookie>?> NavigateInWindowAsync(IntPtr nsWindow, string url, CancellationToken ct)
+    {
+        _succeeded = false;
+        _tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _cookieTcs = null;
+
+        var contentView = msg_ptr(nsWindow, sel_registerName("contentView"));
+        var bounds = msg_nsrect(contentView, sel_registerName("bounds"));
+
+        var wkConfig = msg_ptr(objc_getClass("WKWebViewConfiguration"), sel_registerName("new"));
+        var webView = msg_ptr_nsrect_p(
+            msg_ptr(objc_getClass("WKWebView"), sel_registerName("alloc")),
+            sel_registerName("initWithFrame:configuration:"),
+            bounds, wkConfig);
+
+        // NSViewWidthSizable | NSViewHeightSizable = 18
+        msg_void_nuint(webView, sel_registerName("setAutoresizingMask:"), 18);
+        msg_void_p(contentView, sel_registerName("addSubview:"), webView);
+
+        var del = msg_ptr(msg_ptr(_delegateClass, sel_registerName("alloc")), sel_registerName("init"));
+        msg_void_p(webView, sel_registerName("setNavigationDelegate:"), del);
+
+        var nsStrClass = objc_getClass("NSString");
+        var nsUrlClass = objc_getClass("NSURL");
+        var urlStr = msg_ptr_str(nsStrClass, sel_registerName("stringWithUTF8String:"), url);
+        var nsUrl = msg_ptr_p(nsUrlClass, sel_registerName("URLWithString:"), urlStr);
+        var request = msg_ptr_p(objc_getClass("NSURLRequest"), sel_registerName("requestWithURL:"), nsUrl);
+        msg_ptr_p(webView, sel_registerName("loadRequest:"), request);
+
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        using var combined = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+        using var reg = combined.Token.Register(() => _tcs?.TrySetResult(false));
+        await _tcs.Task;
+
+        msg_void(webView, sel_registerName("removeFromSuperview"));
+
+        if (!_succeeded) return null;
+
+        _cookieTcs = new TaskCompletionSource<List<Cookie>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dataStore = msg_ptr(objc_getClass("WKWebsiteDataStore"), sel_registerName("defaultDataStore"));
+        var cookieStore = msg_ptr(dataStore, sel_registerName("httpCookieStore"));
+        msg_void_p(cookieStore, sel_registerName("getAllCookies:"), _cookieBlockPtr);
+        return await _cookieTcs.Task;
     }
 
     // for testing: pass an NSWindow directly
@@ -306,6 +394,9 @@ internal static class AppleWebAuth
 
     // objc_msgSend variants
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
+    private static extern void msg_void(IntPtr obj, IntPtr sel);
+
+    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
     private static extern IntPtr msg_ptr(IntPtr obj, IntPtr sel);
 
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
@@ -340,6 +431,9 @@ internal static class AppleWebAuth
 
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
     private static extern void msg_void_nuint(IntPtr obj, IntPtr sel, nuint arg);
+
+    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
+    private static extern void msg_void_p_p_p(IntPtr obj, IntPtr sel, IntPtr a, IntPtr b, IntPtr c);
 
     [DllImport("/usr/lib/system/libdispatch.dylib")] private static extern void dispatch_async_f(IntPtr queue, IntPtr context, IntPtr work);
 }

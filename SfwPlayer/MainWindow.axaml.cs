@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SfwPlayer.Models;
 using SfwPlayer.Platform;
+using SfwPlayer.Platform.MacOS;
 using SfwPlayer.Services;
 using SfwPlayer.Views;
 
@@ -543,6 +544,7 @@ public partial class MainWindow : Window
     private void OnSignOutMenuClicked(object? sender, RoutedEventArgs e)
     {
         _services.GetRequiredService<CookieStore>().Clear();
+        AppleWebAuth.ClearWebKitSession();
         _log.LogInformation("signed out from youtube");
     }
 
