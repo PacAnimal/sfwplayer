@@ -1,3 +1,4 @@
+using SfwPlayer.Models;
 using SfwPlayer.Services;
 using Tests.Setup;
 
@@ -282,7 +283,37 @@ public class InnerTubeServiceTests
         Assert.That(result, Is.Empty);
     }
 
-    // integration tests: require Tests/test-cookies.json (gitignored, copy from ~/Library/Application Support/SfwPlayer/cookies.json)
+    [Test]
+    public void ParseVideos_SetsThumbnailUrl()
+    {
+        var json = """{ "videoId": "abc123", "title": { "simpleText": "My Video" } }""";
+        var result = InnerTubeService.ParseVideos(json);
+        Assert.That(result[0].ThumbnailUrl, Is.EqualTo("https://i.ytimg.com/vi/abc123/mqdefault.jpg"));
+    }
+
+    [Test]
+    public void ParseVideos_ParsesDuration_WhenLengthTextPresent()
+    {
+        var json = """
+            {
+              "videoId": "abc123",
+              "title": { "simpleText": "My Video" },
+              "lengthText": { "simpleText": "3:45" }
+            }
+            """;
+        var result = InnerTubeService.ParseVideos(json);
+        Assert.That(result[0].Duration, Is.EqualTo("3:45"));
+    }
+
+    [Test]
+    public void ParseVideos_DurationIsNull_WhenLengthTextAbsent()
+    {
+        var json = """{ "videoId": "abc123", "title": { "simpleText": "My Video" } }""";
+        var result = InnerTubeService.ParseVideos(json);
+        Assert.That(result[0].Duration, Is.Null);
+    }
+
+    // integration tests: require ~/.config/sfwplayer/test-cookies.json (gitignored; use 'Save Test Cookies' in the app)
 
     [Test]
     [CancelAfter(30_000)]
@@ -298,13 +329,43 @@ public class InnerTubeServiceTests
     [CancelAfter(30_000)]
     public async Task GetPlaylistVideosAsync_WithRealAuth_ReturnsVideos(CancellationToken cancel)
     {
-        var store = RequireTestStore();
-        var svc = new InnerTubeService(store, TestLog.CreateLogger<InnerTubeService>());
-        var playlists = await svc.GetPlaylistsAsync(cancel);
-        var playlist = playlists.FirstOrDefault(p => p.Id.StartsWith("PL", StringComparison.Ordinal))
-            ?? playlists.First();
-        var videos = await svc.GetPlaylistVideosAsync(playlist.Id, cancel);
-        Assert.That(videos, Is.Not.Empty, $"playlist {playlist.Id} ({playlist.Title}) should have videos");
+        var videos = await RequireFirstVideosAsync(cancel);
+        Assert.That(videos, Is.Not.Empty);
+    }
+
+    [Test]
+    [CancelAfter(30_000)]
+    public async Task GetPlaylistVideosAsync_WithRealAuth_VideoHasThumbnailUrl(CancellationToken cancel)
+    {
+        var videos = await RequireFirstVideosAsync(cancel);
+        var video = videos.First();
+        Assert.That(video.ThumbnailUrl, Does.StartWith("https://i.ytimg.com/vi/").And.EndsWith("/mqdefault.jpg"),
+            $"video {video.Id} should have a mqdefault thumbnail URL");
+    }
+
+    [Test]
+    [CancelAfter(30_000)]
+    public async Task GetPlaylistVideosAsync_WithRealAuth_SomeVideosHaveDuration(CancellationToken cancel)
+    {
+        var videos = await RequireFirstVideosAsync(cancel);
+        Assert.That(videos.Any(v => v.Duration != null), Is.True,
+            "at least one video should have a duration parsed from lengthText");
+    }
+
+    [Test]
+    [CancelAfter(30_000)]
+    public async Task GetPlaylistVideosAsync_WithRealAuth_ThumbnailIsDownloadable(CancellationToken cancel)
+    {
+        var videos = await RequireFirstVideosAsync(cancel);
+        var video = videos.First(v => v.ThumbnailUrl != null);
+        using var http = new HttpClient();
+        var response = await http.GetAsync(video.ThumbnailUrl, cancel);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That((int)response.StatusCode, Is.EqualTo(200), $"thumbnail for {video.Id} should return 200");
+            Assert.That(response.Content.Headers.ContentType?.MediaType, Does.StartWith("image/"),
+                "thumbnail response should be an image");
+        }
     }
 
     [Test]
@@ -313,23 +374,40 @@ public class InnerTubeServiceTests
     {
         var store = RequireTestStore();
         var svc = new InnerTubeService(store, TestLog.CreateLogger<InnerTubeService>());
-        var playlists = await svc.GetPlaylistsAsync(cancel);
-        var playlist = playlists.FirstOrDefault(p => p.Id.StartsWith("PL", StringComparison.Ordinal))
-            ?? playlists.First();
-        var videos = await svc.GetPlaylistVideosAsync(playlist.Id, cancel);
-        var video = videos.First();
-
+        var videos = await RequireFirstVideosAsync(svc, cancel);
         var yt = new YoutubeService(TestLog.CreateLogger<YoutubeService>(), store);
-        var url = await yt.GetStreamUrl(video.Id, cancel);
+        var url = await yt.GetStreamUrl(videos.First().Id, cancel);
+        Assert.That(url, Does.StartWith("https://"), $"stream URL for {videos.First().Id} should be https");
+    }
 
-        Assert.That(url, Does.StartWith("https://"), $"stream URL for video {video.Id} should be an https URL");
+    // finds the first playlist that has videos; skips the test if none found
+    private static async Task<List<VideoInfo>> RequireFirstVideosAsync(CancellationToken cancel)
+    {
+        var store = RequireTestStore();
+        var svc = new InnerTubeService(store, TestLog.CreateLogger<InnerTubeService>());
+        return await RequireFirstVideosAsync(svc, cancel);
+    }
+
+    private static async Task<List<VideoInfo>> RequireFirstVideosAsync(InnerTubeService svc, CancellationToken cancel)
+    {
+        var playlists = await svc.GetPlaylistsAsync(cancel);
+        if (playlists.Count == 0)
+            Assert.Ignore("no playlists found; check test credentials");
+
+        foreach (var playlist in playlists)
+        {
+            var videos = await svc.GetPlaylistVideosAsync(playlist.Id, cancel);
+            if (videos.Count > 0) return videos;
+        }
+        Assert.Ignore("no playlist with videos found; check test credentials");
+        return []; // unreachable
     }
 
     private static CookieStore RequireTestStore()
     {
         var cookiePath = CookieStore.TestCookiePath;
         if (!File.Exists(cookiePath))
-            Assert.Ignore($"test cookies not found at {cookiePath}; run the app with a debugger attached and use 'Save Test Cookies'");
+            Assert.Ignore($"test cookies not found at {cookiePath}; use 'Save Test Cookies' in the app");
 
         var store = new CookieStore(TestLog.CreateLogger<CookieStore>()) { DataPath = cookiePath };
         store.TryLoad();

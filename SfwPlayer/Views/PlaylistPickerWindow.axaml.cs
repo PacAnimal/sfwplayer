@@ -1,5 +1,10 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SfwPlayer.Models;
@@ -14,6 +19,9 @@ public partial class PlaylistPickerWindow : Window
     private readonly CookieStore _cookies;
     private readonly ILogger<PlaylistPickerWindow> _log;
     private readonly CancellationTokenSource _cts = new();
+    private ObservableCollection<VideoListItem>? _videoItems;
+
+    public event Action<PlaybackRequest>? PlayRequested;
 
     public PlaylistPickerWindow(IServiceProvider services)
     {
@@ -83,6 +91,7 @@ public partial class PlaylistPickerWindow : Window
         if (PlaylistList.SelectedItem is not PlaylistInfo playlist) return;
 
         VideoList.ItemsSource = null;
+        _videoItems = null;
         PlayAllButton.IsEnabled = false;
         ShuffleButton.IsEnabled = false;
         ShowStatus("Loading videos...");
@@ -90,10 +99,13 @@ public partial class PlaylistPickerWindow : Window
         try
         {
             var videos = await _innerTube.GetPlaylistVideosAsync(playlist.Id, CancellationToken.None);
-            VideoList.ItemsSource = videos;
-            PlayAllButton.IsEnabled = videos.Count > 0;
-            ShuffleButton.IsEnabled = videos.Count > 0;
+            var items = videos.Select(v => new VideoListItem(v)).ToList();
+            _videoItems = new ObservableCollection<VideoListItem>(items);
+            VideoList.ItemsSource = _videoItems;
+            PlayAllButton.IsEnabled = _videoItems.Count > 0;
+            ShuffleButton.IsEnabled = _videoItems.Count > 0;
             HideStatus();
+            _ = LoadThumbnailsAsync(items, _cts.Token);
         }
         catch (Exception ex)
         {
@@ -102,12 +114,40 @@ public partial class PlaylistPickerWindow : Window
         }
     }
 
+    private static async Task LoadThumbnailsAsync(List<VideoListItem> items, CancellationToken cancel)
+    {
+        using var http = new HttpClient();
+        try
+        {
+            await Parallel.ForEachAsync(items,
+                new ParallelOptions { MaxDegreeOfParallelism = 5, CancellationToken = cancel },
+                async (item, ct) => await item.LoadThumbnailAsync(http, ct));
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void OnVideoDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (_videoItems == null || VideoList.SelectedItem is not VideoListItem item) return;
+        var startIndex = _videoItems.IndexOf(item);
+        PlayRequested?.Invoke(new PlaybackRequest(_videoItems.Select(i => i.Info).ToList(), false, startIndex));
+    }
+
+    private void OnRemoveVideoClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_videoItems == null || sender is not Button btn || btn.DataContext is not VideoListItem item) return;
+        _videoItems.Remove(item);
+        PlayAllButton.IsEnabled = _videoItems.Count > 0;
+        ShuffleButton.IsEnabled = _videoItems.Count > 0;
+    }
+
     private void OnSignOutClicked(object? sender, RoutedEventArgs e)
     {
         _cookies.Clear();
         AppleWebAuth.ClearWebKitSession();
         PlaylistList.ItemsSource = null;
         VideoList.ItemsSource = null;
+        _videoItems = null;
         PlayAllButton.IsEnabled = false;
         ShuffleButton.IsEnabled = false;
         SignOutButton.IsVisible = false;
@@ -116,14 +156,14 @@ public partial class PlaylistPickerWindow : Window
 
     private void OnPlayAllClicked(object? sender, RoutedEventArgs e)
     {
-        if (VideoList.ItemsSource is not List<VideoInfo> videos) return;
-        Close(new PlaybackRequest(videos, false));
+        if (_videoItems == null) return;
+        Close(new PlaybackRequest(_videoItems.Select(i => i.Info).ToList(), false));
     }
 
     private void OnShuffleClicked(object? sender, RoutedEventArgs e)
     {
-        if (VideoList.ItemsSource is not List<VideoInfo> videos) return;
-        Close(new PlaybackRequest(videos, true));
+        if (_videoItems == null) return;
+        Close(new PlaybackRequest(_videoItems.Select(i => i.Info).ToList(), true));
     }
 
     private void OnCancelClicked(object? sender, RoutedEventArgs e) { _cts.Cancel(); Close(null); }
@@ -135,4 +175,31 @@ public partial class PlaylistPickerWindow : Window
     }
 
     private void HideStatus() => StatusLabel.IsVisible = false;
+}
+
+internal sealed class VideoListItem : INotifyPropertyChanged
+{
+    public VideoInfo Info { get; }
+    private Bitmap? _thumbnail;
+    public Bitmap? Thumbnail
+    {
+        get => _thumbnail;
+        private set { _thumbnail = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Thumbnail))); }
+    }
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public VideoListItem(VideoInfo info) => Info = info;
+
+    public async Task LoadThumbnailAsync(HttpClient http, CancellationToken cancel)
+    {
+        if (Info.ThumbnailUrl == null) return;
+        try
+        {
+            var bytes = await http.GetByteArrayAsync(Info.ThumbnailUrl, cancel);
+            using var ms = new MemoryStream(bytes);
+            var bmp = new Bitmap(ms);
+            await Dispatcher.UIThread.InvokeAsync(() => Thumbnail = bmp);
+        }
+        catch { }
+    }
 }

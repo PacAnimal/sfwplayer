@@ -173,7 +173,10 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
                 var title = GetText(titleEl);
                 var playable = !el.TryGetProperty("isPlayable", out var p) || p.ValueKind != JsonValueKind.False;
                 if (id.Length > 0 && title.Length > 0 && playable && seen.Add(id))
-                    out_.Add(new VideoInfo(id, title, null, out_.Count));
+                {
+                    string? duration = el.TryGetProperty("lengthText", out var lenEl) ? GetText(lenEl) : null;
+                    out_.Add(new VideoInfo(id, title, $"https://i.ytimg.com/vi/{id}/mqdefault.jpg", out_.Count, duration));
+                }
             }
             foreach (var prop in el.EnumerateObject())
                 WalkForVideos(prop.Value, out_, seen, depth + 1);

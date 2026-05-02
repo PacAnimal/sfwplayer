@@ -222,6 +222,7 @@ public partial class MainWindow : Window
     private async void OnSelectPlaylistMenuClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         _picker = new PlaylistPickerWindow(_services);
+        _picker.PlayRequested += OnPickerPlayRequested;
         var result = await _picker.ShowDialog<PlaybackRequest?>(this);
         _picker = null;
         if (result == null) return;
@@ -232,7 +233,14 @@ public partial class MainWindow : Window
 
         _queue = videos;
         _queueIndex = -1;
-        await PlayQueueItemAsync(0);
+        await PlayQueueItemAsync(result.Shuffle ? 0 : result.StartIndex);
+    }
+
+    private void OnPickerPlayRequested(PlaybackRequest req)
+    {
+        _queue = req.Videos;
+        _queueIndex = -1;
+        _ = PlayQueueItemAsync(req.StartIndex);
     }
 
     private void OnPrevClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
