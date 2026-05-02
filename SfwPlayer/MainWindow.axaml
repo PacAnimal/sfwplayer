@@ -17,6 +17,9 @@
                 <Separator />
                 <MenuItem x:Name="PrevMenuItem" Header="Previous" Click="OnPrevClicked" IsEnabled="False" />
                 <MenuItem x:Name="NextMenuItem" Header="Next" Click="OnNextClicked" IsEnabled="False" />
+                <Separator />
+                <MenuItem x:Name="SignOutMenuItem" Header="Sign out from YouTube" Click="OnSignOutMenuClicked" />
+                <MenuItem x:Name="SaveTestCredentialsMenuItem" Header="Save Test Cookies" Click="OnSaveTestCredentialsClicked" IsVisible="False" />
             </ContextMenu>
         </Grid.ContextMenu>
         <!-- video surface — inside Skia, scales with window, no hit-test -->

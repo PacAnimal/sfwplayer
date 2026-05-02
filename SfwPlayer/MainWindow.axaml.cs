@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private CancellationTokenSource _playCts = new();
 
     private VlcVideoBridge? _bridge;
+    private PlaylistPickerWindow? _picker;
     private bool _isMuted;
     private bool _isLocked;
     private bool _isHovering;
@@ -162,6 +163,7 @@ public partial class MainWindow : Window
         _clickThrough.Initialize();
         _pollTimer.Start();
         InitializeBridge();
+        SaveTestCredentialsMenuItem.IsVisible = System.Diagnostics.Debugger.IsAttached;
 
         if (App.OverrideUrl != null)
         {
@@ -218,8 +220,9 @@ public partial class MainWindow : Window
 
     private async void OnSelectPlaylistMenuClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var picker = new PlaylistPickerWindow(_services);
-        var result = await picker.ShowDialog<PlaybackRequest?>(this);
+        _picker = new PlaylistPickerWindow(_services);
+        var result = await _picker.ShowDialog<PlaybackRequest?>(this);
+        _picker = null;
         if (result == null) return;
 
         var videos = result.Shuffle
@@ -537,6 +540,26 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnSignOutMenuClicked(object? sender, RoutedEventArgs e)
+    {
+        _services.GetRequiredService<CookieStore>().Clear();
+        _log.LogInformation("signed out from youtube");
+    }
+
+    private void OnSaveTestCredentialsClicked(object? sender, RoutedEventArgs e)
+    {
+        var src = _services.GetRequiredService<CookieStore>();
+        if (!src.HasCookies)
+        {
+            _log.LogWarning("no cookies to save");
+            return;
+        }
+        var dst = new CookieStore(_services.GetRequiredService<ILogger<CookieStore>>()) { DataPath = CookieStore.TestCookiePath };
+        dst.Save(src.GetCookies());
+        if (_log.IsEnabled(LogLevel.Information))
+            _log.LogInformation("saved test cookies to {path}", CookieStore.TestCookiePath);
+    }
+
     private bool _closingStarted;
 
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
@@ -544,6 +567,9 @@ public partial class MainWindow : Window
         if (_closingStarted) return;
         _closingStarted = true;
         e.Cancel = true;
+
+        _picker?.Close();
+        _picker = null;
 
         _cts.Cancel();
         _playCts.Cancel();

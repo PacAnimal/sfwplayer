@@ -96,6 +96,33 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
         if (depth > 20) return;
         if (el.ValueKind == JsonValueKind.Object)
         {
+            // new lockupViewModel format (YouTube 2024+): contentId + contentType + nested title
+            if (el.TryGetProperty("contentId", out var newIdEl) &&
+                el.TryGetProperty("contentType", out var typeEl) &&
+                typeEl.GetString() == "LOCKUP_CONTENT_TYPE_PLAYLIST" &&
+                el.TryGetProperty("metadata", out var outerMeta) &&
+                outerMeta.TryGetProperty("lockupMetadataViewModel", out var innerMeta) &&
+                innerMeta.TryGetProperty("title", out var newTitleEl) &&
+                newTitleEl.TryGetProperty("content", out var contentEl))
+            {
+                var id = newIdEl.GetString() ?? "";
+                var title = contentEl.GetString() ?? "";
+                if (id.Length > 0 && title.Length > 0 && seen.Add(id))
+                {
+                    long count = 0;
+                    if (el.TryGetProperty("contentImage", out var contentImage))
+                    {
+                        var badgeText = WalkForBadgeText(contentImage);
+                        if (badgeText != null)
+                        {
+                            var m = MyRegex().Match(badgeText);
+                            if (m.Success) _ = long.TryParse(m.Value, out count);
+                        }
+                    }
+                    out_.Add(new PlaylistInfo(id, title, count, null));
+                }
+            }
+            // legacy gridPlaylistRenderer format
             if (el.TryGetProperty("playlistId", out var idEl) && el.TryGetProperty("title", out var titleEl))
             {
                 var id = idEl.GetString() ?? "";
@@ -156,6 +183,27 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
             foreach (var item in el.EnumerateArray())
                 WalkForVideos(item, out_, seen, depth + 1);
         }
+    }
+
+    private static string? WalkForBadgeText(JsonElement el)
+    {
+        if (!el.TryGetProperty("collectionThumbnailViewModel", out var collVm)) return null;
+        if (!collVm.TryGetProperty("primaryThumbnail", out var primary)) return null;
+        if (!primary.TryGetProperty("thumbnailViewModel", out var thumbVm)) return null;
+        if (!thumbVm.TryGetProperty("overlays", out var overlays) || overlays.ValueKind != JsonValueKind.Array) return null;
+        foreach (var overlay in overlays.EnumerateArray())
+        {
+            if (!overlay.TryGetProperty("thumbnailOverlayBadgeViewModel", out var badgeVm)) continue;
+            if (!badgeVm.TryGetProperty("thumbnailBadges", out var badges) || badges.ValueKind != JsonValueKind.Array) continue;
+            foreach (var badge in badges.EnumerateArray())
+            {
+                if (!badge.TryGetProperty("thumbnailBadgeViewModel", out var badgeModel)) continue;
+                if (!badgeModel.TryGetProperty("text", out var textEl)) continue;
+                var text = textEl.GetString();
+                if (!string.IsNullOrEmpty(text)) return text;
+            }
+        }
+        return null;
     }
 
     private static string GetText(JsonElement el)

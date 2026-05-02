@@ -1,4 +1,5 @@
 using SfwPlayer.Services;
+using Tests.Setup;
 
 namespace Tests.YouTube;
 
@@ -126,6 +127,73 @@ public class InnerTubeServiceTests
     }
 
     [Test]
+    public void ParsePlaylists_ParsesLockupViewModelFormat()
+    {
+        var json = """
+            {
+              "contentId": "PLtest123",
+              "contentType": "LOCKUP_CONTENT_TYPE_PLAYLIST",
+              "metadata": {
+                "lockupMetadataViewModel": {
+                  "title": { "content": "My Playlist" }
+                }
+              }
+            }
+            """;
+        var result = InnerTubeService.ParsePlaylists(json);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Has.Count.EqualTo(1));
+            Assert.That(result[0].Id, Is.EqualTo("PLtest123"));
+            Assert.That(result[0].Title, Is.EqualTo("My Playlist"));
+        }
+    }
+
+    [Test]
+    public void ParsePlaylists_ParsesLockupViewModelVideoCount()
+    {
+        var json = """
+            {
+              "contentId": "PLtest456",
+              "contentType": "LOCKUP_CONTENT_TYPE_PLAYLIST",
+              "metadata": {
+                "lockupMetadataViewModel": {
+                  "title": { "content": "Counted Playlist" }
+                }
+              },
+              "contentImage": {
+                "collectionThumbnailViewModel": {
+                  "primaryThumbnail": {
+                    "thumbnailViewModel": {
+                      "overlays": [
+                        {
+                          "thumbnailOverlayBadgeViewModel": {
+                            "thumbnailBadges": [
+                              {
+                                "thumbnailBadgeViewModel": {
+                                  "text": "42 videos"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        var result = InnerTubeService.ParsePlaylists(json);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Has.Count.EqualTo(1));
+            Assert.That(result[0].Id, Is.EqualTo("PLtest456"));
+            Assert.That(result[0].VideoCount, Is.EqualTo(42));
+        }
+    }
+
+    [Test]
     public void ParsePlaylists_WalksNestedStructures()
     {
         var json = """
@@ -212,5 +280,61 @@ public class InnerTubeServiceTests
     {
         var result = InnerTubeService.ParseVideos("not json");
         Assert.That(result, Is.Empty);
+    }
+
+    // integration tests: require Tests/test-cookies.json (gitignored, copy from ~/Library/Application Support/SfwPlayer/cookies.json)
+
+    [Test]
+    [CancelAfter(30_000)]
+    public async Task GetPlaylistsAsync_WithRealAuth_ReturnsPlaylists(CancellationToken cancel)
+    {
+        var store = RequireTestStore();
+        var svc = new InnerTubeService(store, TestLog.CreateLogger<InnerTubeService>());
+        var playlists = await svc.GetPlaylistsAsync(cancel);
+        Assert.That(playlists, Is.Not.Empty, "should return playlists when authenticated");
+    }
+
+    [Test]
+    [CancelAfter(30_000)]
+    public async Task GetPlaylistVideosAsync_WithRealAuth_ReturnsVideos(CancellationToken cancel)
+    {
+        var store = RequireTestStore();
+        var svc = new InnerTubeService(store, TestLog.CreateLogger<InnerTubeService>());
+        var playlists = await svc.GetPlaylistsAsync(cancel);
+        var playlist = playlists.FirstOrDefault(p => p.Id.StartsWith("PL", StringComparison.Ordinal))
+            ?? playlists.First();
+        var videos = await svc.GetPlaylistVideosAsync(playlist.Id, cancel);
+        Assert.That(videos, Is.Not.Empty, $"playlist {playlist.Id} ({playlist.Title}) should have videos");
+    }
+
+    [Test]
+    [CancelAfter(60_000)]
+    public async Task GetStreamUrl_WithRealAuth_FromPlaylistVideo_ReturnsUrl(CancellationToken cancel)
+    {
+        var store = RequireTestStore();
+        var svc = new InnerTubeService(store, TestLog.CreateLogger<InnerTubeService>());
+        var playlists = await svc.GetPlaylistsAsync(cancel);
+        var playlist = playlists.FirstOrDefault(p => p.Id.StartsWith("PL", StringComparison.Ordinal))
+            ?? playlists.First();
+        var videos = await svc.GetPlaylistVideosAsync(playlist.Id, cancel);
+        var video = videos.First();
+
+        var yt = new YoutubeService(TestLog.CreateLogger<YoutubeService>(), store);
+        var url = await yt.GetStreamUrl(video.Id, cancel);
+
+        Assert.That(url, Does.StartWith("https://"), $"stream URL for video {video.Id} should be an https URL");
+    }
+
+    private static CookieStore RequireTestStore()
+    {
+        var cookiePath = CookieStore.TestCookiePath;
+        if (!File.Exists(cookiePath))
+            Assert.Ignore($"test cookies not found at {cookiePath}; run the app with a debugger attached and use 'Save Test Cookies'");
+
+        var store = new CookieStore(TestLog.CreateLogger<CookieStore>()) { DataPath = cookiePath };
+        store.TryLoad();
+        if (!store.HasCookies)
+            Assert.Ignore("no cookies in test store; re-sign-in to the app first");
+        return store;
     }
 }

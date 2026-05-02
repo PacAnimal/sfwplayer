@@ -11,6 +11,10 @@ public class CookieStore(ILogger<CookieStore> log)
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "SfwPlayer", "cookies.json");
 
+    internal static string TestCookiePath { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".config", "sfwplayer", "test-cookies.json");
+
     private List<Cookie> _cookies = [];
 
     public bool HasCookies => _cookies.Count > 0;
