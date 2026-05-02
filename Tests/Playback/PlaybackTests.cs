@@ -13,30 +13,41 @@ public class PlaybackTests
 {
     private const string TestVideoUrl = "https://youtu.be/EngW7tLk6R8"; // 7-second demo
 
+    // Spawns SfwPlayer --url <url> --exit-on-done; the real app window opens visibly and exits 0 when done.
     [Test]
     [CancelAfter(60_000)]
     public async Task PlaysShortVideoToCompletion(CancellationToken cancel)
     {
-        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        cancel.Register(() => tcs.TrySetCanceled());
+        var sfwExe = SubprocessHelper.FindSfwPlayerExe();
+        if (sfwExe == null)
+            Assert.Ignore("SfwPlayer executable not found; build the main project first");
 
-        // use dummy outputs: we care about decode + EndReached, not audio/video rendering
-        using var vlc = new LibVLC(false, [.. VlcSetup.GetArgs(), "--vout=dummy", "--aout=adummy", "--no-stats"]);
-        using var player = new MediaPlayer(vlc);
-        player.EndReached += (_, _) => tcs.TrySetResult();
-
-        var url = await new YoutubeService(TestLog.CreateLogger<YoutubeService>())
-            .GetStreamUrl(TestVideoUrl, cancel);
-        using var media = new Media(vlc, new Uri(url));
-        player.Play(media);
+        var psi = new ProcessStartInfo(sfwExe!)
+        {
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        psi.ArgumentList.Add("--url");
+        psi.ArgumentList.Add(TestVideoUrl);
+        psi.ArgumentList.Add("--exit-on-done");
 
         var sw = Stopwatch.StartNew();
-        await tcs.Task;
+        using var proc = Process.Start(psi)!;
+        try
+        {
+            await proc.WaitForExitAsync(cancel);
+        }
+        finally
+        {
+            if (!proc.HasExited) proc.Kill();
+        }
         sw.Stop();
 
-        player.Stop();
-        Assert.That(sw.Elapsed.TotalSeconds, Is.LessThan(30),
-            "7-second video should complete well within 30s");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(proc.ExitCode, Is.Zero, "SfwPlayer should exit 0 after EndReached");
+            Assert.That(sw.Elapsed.TotalSeconds, Is.LessThan(50), "7-second video should complete well within 50s");
+        }
     }
 
     [Test]

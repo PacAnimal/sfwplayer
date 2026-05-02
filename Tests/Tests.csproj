@@ -31,6 +31,6 @@
     <Using Include="NUnit.Framework" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../sfwplayer.csproj" />
+    <ProjectReference Include="../SfwPlayer/SfwPlayer.csproj" />
   </ItemGroup>
 </Project>

@@ -9,7 +9,7 @@ public class CookieStore(ILogger<CookieStore> log)
 {
     internal string DataPath { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "sfwplayer", "cookies.json");
+        "SfwPlayer", "cookies.json");
 
     private List<Cookie> _cookies = [];
 

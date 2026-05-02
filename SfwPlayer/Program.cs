@@ -3,6 +3,7 @@ using Cathedral.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SfwPlayer.Platform;
+using SfwPlayer.Platform.MacOS;
 using SfwPlayer.Services;
 
 namespace SfwPlayer;
@@ -12,6 +13,21 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        var wkIdx = Array.IndexOf(args, "--wktest");
+        if (wkIdx >= 0 && wkIdx + 1 < args.Length)
+        {
+            VlcSetup.ActivateApp();
+            WkTestMode.Run(args[wkIdx + 1]);
+            return;
+        }
+
+        if (Array.IndexOf(args, "--signin-test") >= 0)
+        {
+            VlcSetup.ActivateApp();
+            WkTestMode.RunSignIn();
+            return;
+        }
+
         VlcSetup.Initialize();
         VlcSetup.ActivateApp();
         App.Services = BuildServices();

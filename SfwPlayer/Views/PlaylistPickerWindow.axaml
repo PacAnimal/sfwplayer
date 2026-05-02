@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="clr-namespace:SfwPlayer.Models"
         x:Class="SfwPlayer.Views.PlaylistPickerWindow"
-        Title="sfwplayer — Select Playlist"
+        Title="SfwPlayer — Select Playlist"
         Background="#1A1A1A"
         Width="700" Height="500"
         MinWidth="500" MinHeight="350"

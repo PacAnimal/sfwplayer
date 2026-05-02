@@ -13,7 +13,7 @@ public class CookieStoreTests
     [SetUp]
     public void SetUp()
     {
-        _tempPath = Path.Combine(Path.GetTempPath(), $"sfwplayer-test-{Guid.NewGuid()}.json");
+        _tempPath = Path.Combine(Path.GetTempPath(), $"SfwPlayer-test-{Guid.NewGuid()}.json");
         _store = new CookieStore(NullLogger<CookieStore>.Instance) { DataPath = _tempPath };
     }
 

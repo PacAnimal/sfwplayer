@@ -5,11 +5,24 @@ namespace SfwPlayer.Services;
 
 internal static class BrowserCookieReader
 {
-    private static readonly string CookiesPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        "Library", "Cookies", "Cookies.binarycookies");
+    // macOS 12+ sandboxes Safari; try the container path first, fall back to the traditional path
+    private static readonly string[] SafariCookiePaths =
+    [
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Library", "Containers", "com.apple.Safari", "Data", "Library", "Cookies", "Cookies.binarycookies"),
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Library", "Cookies", "Cookies.binarycookies"),
+    ];
 
-    internal static List<Cookie> TryReadSafariCookies() => TryReadFromFile(CookiesPath);
+    internal static List<Cookie> TryReadSafariCookies()
+    {
+        foreach (var path in SafariCookiePaths)
+        {
+            var cookies = TryReadFromFile(path);
+            if (cookies.Count > 0) return cookies;
+        }
+        return [];
+    }
 
     internal static List<Cookie> TryReadFromFile(string path)
     {

@@ -1,3 +1,5 @@
+#pragma warning disable CA1806 // p/invoke return values intentionally ignored (posix convention)
+#pragma warning disable SYSLIB1054 // use LibraryImport instead of DllImport
 using System.Runtime.InteropServices;
 using System.Text;
 

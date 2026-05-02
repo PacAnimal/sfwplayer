@@ -51,8 +51,11 @@ public class BrowserCookieReaderTests
     {
         var data = BuildFile(flags: 1);
         var c = BrowserCookieReader.Parse(data)[0];
-        Assert.That(c.Secure, Is.True);
-        Assert.That(c.HttpOnly, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(c.Secure, Is.True);
+            Assert.That(c.HttpOnly, Is.False);
+        }
     }
 
     [Test]
@@ -60,8 +63,11 @@ public class BrowserCookieReaderTests
     {
         var data = BuildFile(flags: 4);
         var c = BrowserCookieReader.Parse(data)[0];
-        Assert.That(c.Secure, Is.False);
-        Assert.That(c.HttpOnly, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(c.Secure, Is.False);
+            Assert.That(c.HttpOnly, Is.True);
+        }
     }
 
     [Test]
@@ -150,19 +156,19 @@ public class BrowserCookieReaderTests
         Assert.That(result, Is.Not.Null);
     }
 
+    // If cookies are present they must all have non-empty name and domain.
+    // Passes trivially on a fresh machine or when not signed in to Safari.
     [Test]
-    public void TryReadSafariCookies_IfYouTubeSessionExists_HasSidCookie()
+    public void TryReadSafariCookies_WhenCookiesExist_AllHaveValidNameAndDomain()
     {
         if (!OperatingSystem.IsMacOS()) Assert.Ignore("macOS only");
-        var cookies = BrowserCookieReader.TryReadSafariCookies();
-        if (cookies.Count == 0)
-            Assert.Ignore("no Safari cookies found — sign in to YouTube in Safari and re-run");
-
-        // if we have Safari cookies, they should all have valid names and domains
-        foreach (var c in cookies)
+        foreach (var c in BrowserCookieReader.TryReadSafariCookies())
         {
-            Assert.That(c.Name, Is.Not.Empty);
-            Assert.That(c.Domain, Is.Not.Empty);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(c.Name, Is.Not.Empty);
+                Assert.That(c.Domain, Is.Not.Empty);
+            }
         }
     }
 

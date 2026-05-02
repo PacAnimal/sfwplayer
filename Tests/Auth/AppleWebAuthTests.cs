@@ -1,7 +1,7 @@
-#pragma warning disable CA2101 // marshaling for p/invoke string arguments
-#pragma warning disable SYSLIB1054 // use LibraryImport instead of DllImport
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using SfwPlayer.Platform.MacOS;
+using Tests.Setup;
 
 namespace Tests.Auth;
 
@@ -28,9 +28,12 @@ public class AppleWebAuthTests
         var result = await AppleWebAuth.SignInAsync(IntPtr.Zero);
         sw.Stop();
 
-        Assert.That(result, Is.Null);
-        Assert.That(sw.ElapsedMilliseconds, Is.LessThan(500),
-            "null-anchor path should return immediately, not wait for a timeout");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.Null);
+            Assert.That(sw.ElapsedMilliseconds, Is.LessThan(500),
+                "null-anchor path should return immediately, not wait for a timeout");
+        }
     }
 
     // Verifies that an external CancellationToken propagates cleanly through SignInAsync.
@@ -47,56 +50,43 @@ public class AppleWebAuthTests
         Assert.That(result, Is.Null);
     }
 
-    // Opens a real ASWebAuthenticationSession browser sheet, waits 5 seconds, then cancels.
-    // The Google sign-in browser should visibly appear and disappear.
-    // Skips gracefully if NSWindow creation fails (headless/CI environment).
+    // Spawns SfwPlayer --signin-test, which opens the Google sign-in window for 5 s then exits.
+    // The window is visible during the test run.
     [Test]
-    [CancelAfter(20_000)]
-    public async Task SignInAsync_OpensBrowserAndCancels(CancellationToken testCancel)
+    public async Task SignInAsync_OpensBrowserAndCancels()
     {
         if (!OperatingSystem.IsMacOS()) Assert.Ignore("macOS only");
 
-        var nsWindow = CreateNsWindow();
-        if (nsWindow == IntPtr.Zero) Assert.Ignore("NSWindow creation failed — headless/CI environment");
+        var sfwExe = SubprocessHelper.FindSfwPlayerExe();
+        if (sfwExe == null)
+            Assert.Ignore("SfwPlayer executable not found; build the main project first");
 
+        var psi = new ProcessStartInfo(sfwExe!)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        psi.ArgumentList.Add("--signin-test");
+
+        using var proc = Process.Start(psi)!;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+
+        var done = false;
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var result = await AppleWebAuth.SignInWithAnchorAsync(nsWindow, cts.Token);
-            Assert.That(result, Is.Null, "cancelled sign-in should return null");
+            string? line;
+            while ((line = await proc.StandardOutput.ReadLineAsync(cts.Token)) != null)
+            {
+                if (line == "DONE") { done = true; break; }
+            }
         }
+        catch (OperationCanceledException) { }
         finally
         {
-            ObjcMsgSendVoid(nsWindow, SelRegisterName("close"));
+            if (!proc.HasExited) proc.Kill();
         }
-    }
 
-    // --- NSWindow helpers ---
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NSRect { public double X, Y, W, H; }
-
-    [DllImport("/usr/lib/libobjc.dylib")] private static extern IntPtr ObjcGetClass(string name);
-    [DllImport("/usr/lib/libobjc.dylib")] private static extern IntPtr SelRegisterName(string name);
-    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")] private static extern IntPtr ObjcMsgSendPtr(IntPtr obj, IntPtr sel);
-    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")] private static extern IntPtr ObjcMsgSendInitWindow(IntPtr obj, IntPtr sel, NSRect rect, nuint style, nuint backing, bool defer);
-    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")] private static extern void ObjcMsgSendVoid(IntPtr obj, IntPtr sel);
-    [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")] private static extern void ObjcMsgSendVoidPtr(IntPtr obj, IntPtr sel, IntPtr a);
-
-    private static IntPtr CreateNsWindow()
-    {
-        try
-        {
-            var cls = ObjcGetClass("NSWindow");
-            var alloc = ObjcMsgSendPtr(cls, SelRegisterName("alloc"));
-            var rect = new NSRect { X = 200, Y = 200, W = 800, H = 600 };
-            // NSTitledWindowMask(1) | NSClosableWindowMask(2) | NSMiniaturizableWindowMask(4) = 7, NSBackingStoreBuffered = 2
-            var window = ObjcMsgSendInitWindow(alloc, SelRegisterName("initWithContentRect:styleMask:backing:defer:"),
-                rect, 7, 2, false);
-            if (window == IntPtr.Zero) return IntPtr.Zero;
-            ObjcMsgSendVoidPtr(window, SelRegisterName("makeKeyAndOrderFront:"), IntPtr.Zero);
-            return window;
-        }
-        catch { return IntPtr.Zero; }
+        Assert.That(done, Is.True, "SfwPlayer --signin-test should print DONE after showing the sign-in window");
     }
 }
