@@ -8,7 +8,7 @@ namespace Tests.YouTube;
 public class InnerTubeServiceTests
 {
     private static readonly string[] PlaylistIds = ["PL1", "PL2"];
-    private static readonly string[] PlayableVideoIds = ["v1", "v3"];
+
     private static readonly long[] Positions = [0, 1, 2];
 
     // --- ExtractYtInitialData ---
@@ -235,8 +235,9 @@ public class InnerTubeServiceTests
     }
 
     [Test]
-    public void ParseVideos_SkipsNonPlayableVideos()
+    public void ParseVideos_IncludesNonPlayableVideos()
     {
+        // non-playable items (private/deleted) stay in the list so they can be deleted from playlists
         var json = """
             [
               { "videoId": "v1", "title": { "simpleText": "Playable" } },
@@ -245,8 +246,8 @@ public class InnerTubeServiceTests
             ]
             """;
         var result = InnerTubeService.ParseVideos(json);
-        Assert.That(result, Has.Count.EqualTo(2));
-        Assert.That(result.Select(v => v.Id), Is.EquivalentTo(PlayableVideoIds));
+        Assert.That(result, Has.Count.EqualTo(3));
+        Assert.That(result.Select(v => v.Id), Is.EquivalentTo(new[] { "v1", "v2", "v3" }));
     }
 
     [Test]

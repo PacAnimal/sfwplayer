@@ -20,6 +20,7 @@ public partial class PlaylistPickerWindow : Window
     private readonly ILogger<PlaylistPickerWindow> _log;
     private readonly CancellationTokenSource _cts = new();
     private ObservableCollection<VideoListItem>? _videoItems;
+    private string? _currentPlaylistId;
 
     public event Action<PlaybackRequest>? PlayRequested;
 
@@ -92,6 +93,7 @@ public partial class PlaylistPickerWindow : Window
 
         VideoList.ItemsSource = null;
         _videoItems = null;
+        _currentPlaylistId = null;
         PlayAllButton.IsEnabled = false;
         ShuffleButton.IsEnabled = false;
         ShowStatus("Loading videos...");
@@ -100,6 +102,7 @@ public partial class PlaylistPickerWindow : Window
         {
             var videos = await _innerTube.GetPlaylistVideosAsync(playlist.Id, CancellationToken.None);
             var items = videos.Select(v => new VideoListItem(v)).ToList();
+            _currentPlaylistId = playlist.Id;
             _videoItems = new ObservableCollection<VideoListItem>(items);
             VideoList.ItemsSource = _videoItems;
             PlayAllButton.IsEnabled = _videoItems.Count > 0;
@@ -133,12 +136,25 @@ public partial class PlaylistPickerWindow : Window
         PlayRequested?.Invoke(new PlaybackRequest(_videoItems.Select(i => i.Info).ToList(), false, startIndex));
     }
 
-    private void OnRemoveVideoClicked(object? sender, RoutedEventArgs e)
+    private async void OnRemoveVideoClicked(object? sender, RoutedEventArgs e)
     {
         if (_videoItems == null || sender is not Button btn || btn.DataContext is not VideoListItem item) return;
         _videoItems.Remove(item);
         PlayAllButton.IsEnabled = _videoItems.Count > 0;
         ShuffleButton.IsEnabled = _videoItems.Count > 0;
+        if (_currentPlaylistId == null || item.Info.SetVideoId == null)
+        {
+            _log.LogWarning("no setVideoId for {id}, skipping YouTube removal", item.Info.Id);
+            return;
+        }
+        try
+        {
+            await _innerTube.RemovePlaylistItemAsync(_currentPlaylistId, item.Info.SetVideoId, item.Info.Id, _cts.Token);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "failed to remove video {id} from playlist", item.Info.Id);
+        }
     }
 
     private void OnSignOutClicked(object? sender, RoutedEventArgs e)
@@ -148,6 +164,7 @@ public partial class PlaylistPickerWindow : Window
         PlaylistList.ItemsSource = null;
         VideoList.ItemsSource = null;
         _videoItems = null;
+        _currentPlaylistId = null;
         PlayAllButton.IsEnabled = false;
         ShuffleButton.IsEnabled = false;
         SignOutButton.IsVisible = false;

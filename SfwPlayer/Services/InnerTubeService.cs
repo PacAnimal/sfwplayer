@@ -1,6 +1,8 @@
 #pragma warning disable CA1873 // logging calls with cheap args don't need IsEnabled guards
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
@@ -62,6 +64,40 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
                 string.Join("; ", youtubeCookies.Select(c => $"{c.Name}={c.Value}")));
 
         return http;
+    }
+
+    public async Task RemovePlaylistItemAsync(string playlistId, string setVideoId, string videoId, CancellationToken cancel)
+    {
+        log.LogInformation("removing video {videoId} (set={setVideoId}) from playlist {playlistId}", videoId, setVideoId, playlistId);
+        using var http = BuildClient();
+        AddAuthHeader(http);
+        var body = JsonSerializer.Serialize(new
+        {
+            context = new { client = new { clientName = "WEB", clientVersion = "2.20240101.00.00", hl = "en", gl = "US" } },
+            playlistId,
+            actions = new[] { new { action = "ACTION_REMOVE_VIDEO", setVideoId, removedVideoId = videoId } }
+        });
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
+        var resp = await http.PostAsync("https://www.youtube.com/youtubei/v1/browse/edit_playlist", content, cancel);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var text = await resp.Content.ReadAsStringAsync(cancel);
+            log.LogWarning("edit_playlist returned {status}: {body}", resp.StatusCode, text);
+            resp.EnsureSuccessStatusCode();
+        }
+        log.LogInformation("removed video {videoId} from playlist {playlistId}", videoId, playlistId);
+    }
+
+    private void AddAuthHeader(HttpClient http)
+    {
+        var sapisid = cookies.GetCookies().FirstOrDefault(c => c.Name == "SAPISID")?.Value;
+        if (sapisid == null) return;
+        var ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var hash = Convert.ToHexString(SHA1.HashData(
+            Encoding.UTF8.GetBytes($"{ts} {sapisid} https://www.youtube.com")
+        )).ToLowerInvariant();
+        http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"SAPISIDHASH {ts}_{hash}");
+        http.DefaultRequestHeaders.Add("X-Origin", "https://www.youtube.com");
     }
 
     // --- HTML extraction ---
@@ -171,11 +207,11 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
             {
                 var id = idEl.GetString() ?? "";
                 var title = GetText(titleEl);
-                var playable = !el.TryGetProperty("isPlayable", out var p) || p.ValueKind != JsonValueKind.False;
-                if (id.Length > 0 && title.Length > 0 && playable && seen.Add(id))
+                if (id.Length > 0 && title.Length > 0 && seen.Add(id))
                 {
                     string? duration = el.TryGetProperty("lengthText", out var lenEl) ? GetText(lenEl) : null;
-                    out_.Add(new VideoInfo(id, title, $"https://i.ytimg.com/vi/{id}/mqdefault.jpg", out_.Count, duration));
+                    string? setVideoId = el.TryGetProperty("setVideoId", out var setIdEl) ? setIdEl.GetString() : null;
+                    out_.Add(new VideoInfo(id, title, $"https://i.ytimg.com/vi/{id}/mqdefault.jpg", out_.Count, duration, setVideoId));
                 }
             }
             foreach (var prop in el.EnumerateObject())
