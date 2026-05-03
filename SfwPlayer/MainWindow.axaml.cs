@@ -214,8 +214,10 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            _log.LogError(ex, "failed to load video {id}", video.Id);
+            _log.LogWarning(ex, "skipping unavailable video {id}", video.Id);
             LoadingLabel.IsVisible = false;
+            if (_queueIndex < _queue.Count - 1)
+                _ = PlayQueueItemAsync(_queueIndex + 1);
         }
     }
 
