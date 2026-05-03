@@ -39,7 +39,7 @@
                      Background="#141414"
                      Padding="0">
                 <ListBox.ItemTemplate>
-                    <DataTemplate DataType="{x:Type models:PlaylistInfo}">
+                    <DataTemplate DataType="{x:Type models:PlaylistInfo}" x:CompileBindings="False">
                         <StackPanel Margin="10,6">
                             <TextBlock Text="{Binding Title}"
                                        Foreground="White" FontWeight="SemiBold"
@@ -59,7 +59,7 @@
                      Padding="0"
                      DoubleTapped="OnVideoDoubleTapped">
                 <ListBox.ItemTemplate>
-                    <DataTemplate DataType="{x:Type views:VideoListItem}">
+                    <DataTemplate DataType="{x:Type views:VideoListItem}" x:CompileBindings="False">
                         <Grid Margin="6,4" ColumnDefinitions="Auto,*,Auto">
                             <!-- thumbnail -->
                             <Border Grid.Column="0" Width="120" Height="68" Background="#2A2A2A"

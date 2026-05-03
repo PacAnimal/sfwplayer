@@ -247,7 +247,7 @@ public class InnerTubeServiceTests
             """;
         var result = InnerTubeService.ParseVideos(json);
         Assert.That(result, Has.Count.EqualTo(3));
-        Assert.That(result.Select(v => v.Id), Is.EquivalentTo(new[] { "v1", "v2", "v3" }));
+        Assert.That(result.Select(v => v.Id), Is.EquivalentTo(["v1", "v2", "v3"]));
     }
 
     [Test]

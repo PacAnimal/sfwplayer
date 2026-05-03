@@ -133,7 +133,7 @@ public partial class PlaylistPickerWindow : Window
     {
         if (_videoItems == null || VideoList.SelectedItem is not VideoListItem item) return;
         var startIndex = _videoItems.IndexOf(item);
-        PlayRequested?.Invoke(new PlaybackRequest(_videoItems.Select(i => i.Info).ToList(), false, startIndex));
+        PlayRequested?.Invoke(new PlaybackRequest([.. _videoItems.Select(i => i.Info)], false, startIndex, _currentPlaylistId));
     }
 
     private async void OnRemoveVideoClicked(object? sender, RoutedEventArgs e)
@@ -174,13 +174,13 @@ public partial class PlaylistPickerWindow : Window
     private void OnPlayAllClicked(object? sender, RoutedEventArgs e)
     {
         if (_videoItems == null) return;
-        Close(new PlaybackRequest(_videoItems.Select(i => i.Info).ToList(), false));
+        Close(new PlaybackRequest([.. _videoItems.Select(i => i.Info)], false, PlaylistId: _currentPlaylistId));
     }
 
     private void OnShuffleClicked(object? sender, RoutedEventArgs e)
     {
         if (_videoItems == null) return;
-        Close(new PlaybackRequest(_videoItems.Select(i => i.Info).ToList(), true));
+        Close(new PlaybackRequest([.. _videoItems.Select(i => i.Info)], true, PlaylistId: _currentPlaylistId));
     }
 
     private void OnCancelClicked(object? sender, RoutedEventArgs e) { _cts.Cancel(); Close(null); }
@@ -194,9 +194,9 @@ public partial class PlaylistPickerWindow : Window
     private void HideStatus() => StatusLabel.IsVisible = false;
 }
 
-internal sealed class VideoListItem : INotifyPropertyChanged
+internal sealed class VideoListItem(VideoInfo info) : INotifyPropertyChanged
 {
-    public VideoInfo Info { get; }
+    public VideoInfo Info { get; } = info;
     private Bitmap? _thumbnail;
     public Bitmap? Thumbnail
     {
@@ -204,8 +204,6 @@ internal sealed class VideoListItem : INotifyPropertyChanged
         private set { _thumbnail = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Thumbnail))); }
     }
     public event PropertyChangedEventHandler? PropertyChanged;
-
-    public VideoListItem(VideoInfo info) => Info = info;
 
     public async Task LoadThumbnailAsync(HttpClient http, CancellationToken cancel)
     {

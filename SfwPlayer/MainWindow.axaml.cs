@@ -1,3 +1,4 @@
+#pragma warning disable CA1873 // logging calls with cheap args don't need IsEnabled guards
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Controls;
@@ -22,11 +23,14 @@ public partial class MainWindow : Window
     private readonly ILogger<MainWindow> _log;
     private readonly IServiceProvider _services;
     private readonly YoutubeService _youtube;
+    private readonly InnerTubeService _innerTube;
     private readonly ClickThrough _clickThrough;
     private readonly CancellationTokenSource _cts = new();
 
     private List<VideoInfo> _queue = [];
     private int _queueIndex = -1;
+    private string? _currentPlaylistId;
+    private bool _queueRefreshed;
     private CancellationTokenSource _playCts = new();
 
     private VlcVideoBridge? _bridge;
@@ -69,6 +73,7 @@ public partial class MainWindow : Window
         _services = services;
         _log = services.GetRequiredService<ILogger<MainWindow>>();
         _youtube = services.GetRequiredService<YoutubeService>();
+        _innerTube = services.GetRequiredService<InnerTubeService>();
         _clickThrough = new ClickThrough(this, services.GetRequiredService<ILogger<ClickThrough>>());
 
         _pollTimer.Tick += OnPollTick;
@@ -192,6 +197,7 @@ public partial class MainWindow : Window
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, _playCts.Token);
 
         _queueIndex = index;
+        _queueRefreshed = false;
         var video = _queue[index];
 
         TrackTitle.Text = video.Title;
@@ -219,6 +225,41 @@ public partial class MainWindow : Window
         NextMenuItem.IsEnabled = _queue.Count > 0 && _queueIndex < _queue.Count - 1;
     }
 
+    private async Task RefreshQueueAsync(string playlistId, CancellationToken cancel)
+    {
+        _log.LogInformation("refreshing playlist {id} before end of track", playlistId);
+        List<VideoInfo> fresh;
+        try
+        {
+            fresh = await _innerTube.GetPlaylistVideosAsync(playlistId, cancel);
+        }
+        catch (OperationCanceledException) { return; }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "playlist refresh failed for {id}", playlistId);
+            return;
+        }
+        if (fresh.Count == 0 || _queueIndex < 0 || _queueIndex >= _queue.Count) return;
+
+        var currentId = _queue[_queueIndex].Id;
+        var newIndex = fresh.FindIndex(v => v.Id == currentId);
+        if (newIndex >= 0)
+        {
+            _queue = fresh;
+            _queueIndex = newIndex;
+        }
+        else
+        {
+            // current video was deleted externally; land on what was originally next
+            var nextId = _queueIndex + 1 < _queue.Count ? _queue[_queueIndex + 1].Id : null;
+            var nextIndex = nextId != null ? fresh.FindIndex(v => v.Id == nextId) : -1;
+            _queue = fresh;
+            _queueIndex = nextIndex >= 0 ? nextIndex - 1 : -1;
+        }
+        UpdateQueueMenuItems();
+        _log.LogInformation("playlist refreshed: {count} videos, queue index now {index}", fresh.Count, _queueIndex);
+    }
+
     private async void OnSelectPlaylistMenuClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         _picker = new PlaylistPickerWindow(_services);
@@ -233,6 +274,7 @@ public partial class MainWindow : Window
 
         _queue = videos;
         _queueIndex = -1;
+        _currentPlaylistId = result.PlaylistId;
         await PlayQueueItemAsync(result.Shuffle ? 0 : result.StartIndex);
     }
 
@@ -240,6 +282,7 @@ public partial class MainWindow : Window
     {
         _queue = req.Videos;
         _queueIndex = -1;
+        _currentPlaylistId = req.PlaylistId;
         _ = PlayQueueItemAsync(req.StartIndex);
     }
 
@@ -335,6 +378,13 @@ public partial class MainWindow : Window
             UpdateState();
         }
         ApplyClickThrough();
+
+        // refresh the playlist ~30s before the current track ends so queue reflects external changes
+        if (_currentPlaylistId != null && !_queueRefreshed && _totalMs > 30_000 && _currentMs > 0 && (_totalMs - _currentMs) <= 30_000)
+        {
+            _queueRefreshed = true;
+            _ = RefreshQueueAsync(_currentPlaylistId, _playCts.Token);
+        }
     }
 
     private void UpdateState()

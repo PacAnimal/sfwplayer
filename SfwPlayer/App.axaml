@@ -6,14 +6,14 @@
             <Setter Property="MinHeight" Value="20" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Template">
-                <ControlTemplate>
+                <ControlTemplate x:CompileBindings="False">
                     <Grid MinHeight="20" Background="Transparent">
                         <Border Height="2" VerticalAlignment="Center"
                                 Background="#484848" CornerRadius="1" />
                         <Track Name="PART_Track"
-                               Minimum="{TemplateBinding Minimum}"
-                               Maximum="{TemplateBinding Maximum}"
-                               Value="{TemplateBinding Value, Mode=TwoWay}"
+                               Minimum="{Binding Minimum, RelativeSource={RelativeSource TemplatedParent}}"
+                               Maximum="{Binding Maximum, RelativeSource={RelativeSource TemplatedParent}}"
+                               Value="{Binding Value, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
                                Orientation="Horizontal">
                             <Track.Thumb>
                                 <Thumb>
