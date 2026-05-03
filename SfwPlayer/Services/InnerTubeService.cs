@@ -36,16 +36,72 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
     {
         log.LogInformation("fetching videos for playlist {id}", playlistId);
         using var http = BuildClient();
-        var html = await http.GetStringAsync(
-            $"https://www.youtube.com/playlist?list={Uri.EscapeDataString(playlistId)}", cancel);
-        var json = ExtractYtInitialData(html);
-        if (json == null)
+        AddAuthHeader(http);
+
+        var results = new List<VideoInfo>();
+        var seen = new HashSet<string>();
+        var usedTokens = new HashSet<string>();
+
+        // wgYCCAA= is the "show unavailable videos" browse params
+        var initBody = JsonSerializer.Serialize(new
         {
-            log.LogWarning("ytInitialData not found in playlist page");
-            return [];
+            context = new { client = new { clientName = "WEB", clientVersion = "2.20240101.00.00", hl = "en", gl = "US" } },
+            browseId = $"VL{playlistId}",
+            @params = "wgYCCAA="
+        });
+        using var initContent = new StringContent(initBody, Encoding.UTF8, "application/json");
+        var initResp = await http.PostAsync("https://www.youtube.com/youtubei/v1/browse", initContent, cancel);
+        if (!initResp.IsSuccessStatusCode)
+        {
+            log.LogWarning("browse request returned {status}", initResp.StatusCode);
+            return results;
         }
-        var results = ParseVideos(json);
-        log.LogInformation("found {count} videos", results.Count);
+        var initJson = await initResp.Content.ReadAsStringAsync(cancel);
+        string? token;
+        try
+        {
+            using var doc = JsonDocument.Parse(initJson, new JsonDocumentOptions { AllowTrailingCommas = true });
+            WalkForVideos(doc.RootElement, results, seen, 0);
+            token = ExtractContinuationToken(doc.RootElement);
+        }
+        catch (JsonException ex)
+        {
+            log.LogWarning("failed to parse browse response json: {msg}", ex.Message);
+            return results;
+        }
+
+        while (token != null && usedTokens.Add(token))
+        {
+            log.LogInformation("fetching continuation for playlist {id} ({count} so far)", playlistId, results.Count);
+            var contBody = JsonSerializer.Serialize(new
+            {
+                context = new { client = new { clientName = "WEB", clientVersion = "2.20240101.00.00", hl = "en", gl = "US" } },
+                continuation = token
+            });
+            using var reqContent = new StringContent(contBody, Encoding.UTF8, "application/json");
+            var resp = await http.PostAsync("https://www.youtube.com/youtubei/v1/browse", reqContent, cancel);
+            if (!resp.IsSuccessStatusCode)
+            {
+                log.LogWarning("continuation request returned {status}", resp.StatusCode);
+                break;
+            }
+            var contJson = await resp.Content.ReadAsStringAsync(cancel);
+            string? nextToken = null;
+            try
+            {
+                using var contDoc = JsonDocument.Parse(contJson, new JsonDocumentOptions { AllowTrailingCommas = true });
+                WalkForVideos(contDoc.RootElement, results, seen, 0);
+                nextToken = ExtractContinuationToken(contDoc.RootElement);
+            }
+            catch (JsonException ex)
+            {
+                log.LogWarning("failed to parse continuation json: {msg}", ex.Message);
+                break;
+            }
+            token = nextToken;
+        }
+
+        log.LogInformation("found {count} videos in playlist {id}", results.Count, playlistId);
         return results;
     }
 
@@ -110,6 +166,58 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
         idx += Marker.Length;
         var end = html.IndexOf(";</script>", idx, StringComparison.Ordinal);
         return end < 0 ? null : html[idx..end];
+    }
+
+    internal static string? ExtractContinuationToken(JsonElement el, int depth = 0)
+    {
+        if (depth > 30) return null;
+        if (el.ValueKind == JsonValueKind.Object)
+        {
+            if (el.TryGetProperty("continuationCommand", out var cmd) &&
+                cmd.TryGetProperty("token", out var tokenEl))
+                return tokenEl.GetString();
+            foreach (var prop in el.EnumerateObject())
+            {
+                var found = ExtractContinuationToken(prop.Value, depth + 1);
+                if (found != null) return found;
+            }
+        }
+        else if (el.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in el.EnumerateArray())
+            {
+                var found = ExtractContinuationToken(item, depth + 1);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    internal static int ExtractPlaylistVideoCount(JsonElement el, int depth = 0)
+    {
+        if (depth > 20) return -1;
+        if (el.ValueKind == JsonValueKind.Object)
+        {
+            if (el.TryGetProperty("numVideosText", out var numVideosText))
+            {
+                var m = MyRegex().Match(GetText(numVideosText));
+                if (m.Success && int.TryParse(m.Value, out var n)) return n;
+            }
+            foreach (var prop in el.EnumerateObject())
+            {
+                var found = ExtractPlaylistVideoCount(prop.Value, depth + 1);
+                if (found >= 0) return found;
+            }
+        }
+        else if (el.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in el.EnumerateArray())
+            {
+                var found = ExtractPlaylistVideoCount(item, depth + 1);
+                if (found >= 0) return found;
+            }
+        }
+        return -1;
     }
 
     // --- JSON parsing ---

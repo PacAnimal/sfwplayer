@@ -1,3 +1,4 @@
+using System.Text.Json;
 using SfwPlayer.Models;
 using SfwPlayer.Services;
 using Tests.Setup;
@@ -314,6 +315,55 @@ public class InnerTubeServiceTests
         Assert.That(result[0].Duration, Is.Null);
     }
 
+    // --- ExtractContinuationToken ---
+
+    [Test]
+    public void ExtractContinuationToken_ReturnsNull_WhenAbsent()
+    {
+        using var doc = JsonDocument.Parse("""{"key":"value"}""");
+        Assert.That(InnerTubeService.ExtractContinuationToken(doc.RootElement), Is.Null);
+    }
+
+    [Test]
+    public void ExtractContinuationToken_ReturnsToken_WhenPresent()
+    {
+        var json = """{ "continuationCommand": { "token": "abc123tok" } }""";
+        using var doc = JsonDocument.Parse(json);
+        Assert.That(InnerTubeService.ExtractContinuationToken(doc.RootElement), Is.EqualTo("abc123tok"));
+    }
+
+    [Test]
+    public void ExtractContinuationToken_FindsNestedToken()
+    {
+        var json = """
+            {
+              "continuationItemRenderer": {
+                "continuationEndpoint": {
+                  "continuationCommand": {
+                    "token": "nested_tok",
+                    "request": "CONTINUATION_REQUEST_TYPE_BROWSE"
+                  }
+                }
+              }
+            }
+            """;
+        using var doc = JsonDocument.Parse(json);
+        Assert.That(InnerTubeService.ExtractContinuationToken(doc.RootElement), Is.EqualTo("nested_tok"));
+    }
+
+    [Test]
+    public void ExtractContinuationToken_FindsTokenInArray()
+    {
+        var json = """
+            [
+              { "videoId": "v1", "title": { "simpleText": "Video 1" } },
+              { "continuationItemRenderer": { "continuationEndpoint": { "continuationCommand": { "token": "arr_tok" } } } }
+            ]
+            """;
+        using var doc = JsonDocument.Parse(json);
+        Assert.That(InnerTubeService.ExtractContinuationToken(doc.RootElement), Is.EqualTo("arr_tok"));
+    }
+
     // integration tests: require ~/.config/sfwplayer/test-cookies.json (gitignored; use 'Save Test Cookies' in the app)
 
     [Test]
@@ -379,6 +429,26 @@ public class InnerTubeServiceTests
         var yt = new YoutubeService(TestLog.CreateLogger<YoutubeService>(), store);
         var url = await yt.GetStreamUrl(videos.First().Id, cancel);
         Assert.That(url, Does.StartWith("https://"), $"stream URL for {videos.First().Id} should be https");
+    }
+
+
+    [Test]
+    [CancelAfter(120_000)]
+    public async Task GetPlaylistVideosAsync_WatchLater_LoadsAllDeclaredVideos(CancellationToken cancel)
+    {
+        var store = RequireTestStore();
+        var svc = new InnerTubeService(store, TestLog.CreateLogger<InnerTubeService>());
+        using var http = svc.BuildClient();
+        var html = await http.GetStringAsync("https://www.youtube.com/playlist?list=WL", cancel);
+        var json = InnerTubeService.ExtractYtInitialData(html);
+        Assert.That(json, Is.Not.Null, "ytInitialData not found in Watch Later page");
+        using var doc = JsonDocument.Parse(json!);
+        var declared = InnerTubeService.ExtractPlaylistVideoCount(doc.RootElement);
+        Assume.That(declared, Is.GreaterThan(0), "Watch Later appears empty or count not parseable; skipping");
+
+        var videos = await svc.GetPlaylistVideosAsync("WL", cancel);
+        Assert.That(videos.Count, Is.EqualTo(declared),
+            $"Watch Later declared {declared} videos but loaded {videos.Count}");
     }
 
     // finds the first playlist that has videos; skips the test if none found
