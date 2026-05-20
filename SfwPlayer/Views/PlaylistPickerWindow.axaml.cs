@@ -174,13 +174,15 @@ public partial class PlaylistPickerWindow : Window
     private void OnPlayAllClicked(object? sender, RoutedEventArgs e)
     {
         if (_videoItems == null) return;
-        Close(new PlaybackRequest([.. _videoItems.Select(i => i.Info)], false, PlaylistId: _currentPlaylistId));
+        PlayRequested?.Invoke(new PlaybackRequest([.. _videoItems.Select(i => i.Info)], false, PlaylistId: _currentPlaylistId));
+        Close();
     }
 
     private void OnShuffleClicked(object? sender, RoutedEventArgs e)
     {
         if (_videoItems == null) return;
-        Close(new PlaybackRequest([.. _videoItems.Select(i => i.Info)], true, PlaylistId: _currentPlaylistId));
+        PlayRequested?.Invoke(new PlaybackRequest([.. _videoItems.Select(i => i.Info)], true, PlaylistId: _currentPlaylistId));
+        Close();
     }
 
     private void OnCancelClicked(object? sender, RoutedEventArgs e) { _cts.Cancel(); Close(null); }

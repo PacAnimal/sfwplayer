@@ -53,6 +53,8 @@ public partial class MainWindow : Window
 
     private PixelPoint _videoPressWindowPos;
     private DateTime _videoPressTime;
+    private PixelPoint _videoDragCursorStart;
+    private bool _videoDragActive;
 
     private static readonly Transitions FadeOutControls =
     [
@@ -262,30 +264,24 @@ public partial class MainWindow : Window
         _log.LogInformation("playlist refreshed: {count} videos, queue index now {index}", fresh.Count, _queueIndex);
     }
 
-    private async void OnSelectPlaylistMenuClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void OnSelectPlaylistMenuClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
+        if (_picker != null) { _picker.Activate(); return; }
         _picker = new PlaylistPickerWindow(_services);
         _picker.PlayRequested += OnPickerPlayRequested;
-        var result = await _picker.ShowDialog<PlaybackRequest?>(this);
-        _picker = null;
-        if (result == null) return;
-
-        var videos = result.Shuffle
-            ? [.. result.Videos.OrderBy(_ => Random.Shared.Next())]
-            : result.Videos;
-
-        _queue = videos;
-        _queueIndex = -1;
-        _currentPlaylistId = result.PlaylistId;
-        await PlayQueueItemAsync(result.Shuffle ? 0 : result.StartIndex);
+        _picker.Closed += (_, _) => _picker = null;
+        _picker.Show(this);
     }
 
     private void OnPickerPlayRequested(PlaybackRequest req)
     {
-        _queue = req.Videos;
+        var videos = req.Shuffle
+            ? [.. req.Videos.OrderBy(_ => Random.Shared.Next())]
+            : req.Videos;
+        _queue = videos;
         _queueIndex = -1;
         _currentPlaylistId = req.PlaylistId;
-        _ = PlayQueueItemAsync(req.StartIndex);
+        _ = PlayQueueItemAsync(req.Shuffle ? 0 : req.StartIndex);
     }
 
     private void OnPrevClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -487,16 +483,29 @@ public partial class MainWindow : Window
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         _videoPressWindowPos = Position;
         _videoPressTime = DateTime.UtcNow;
-        BeginMoveDrag(e);
+        _videoDragCursorStart = _clickThrough.GetCursorPosition();
+        _videoDragActive = false;
+        e.Pointer.Capture((IInputElement)sender!);
+    }
+
+    private void OnVideoPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) { _videoDragActive = false; return; }
+        var cursor = _clickThrough.GetCursorPosition();
+        var dx = cursor.X - _videoDragCursorStart.X;
+        var dy = cursor.Y - _videoDragCursorStart.Y;
+        if (!_videoDragActive && (Math.Abs(dx) >= 4 || Math.Abs(dy) >= 4))
+            _videoDragActive = true;
+        if (_videoDragActive)
+            Position = new PixelPoint(_videoPressWindowPos.X + dx, _videoPressWindowPos.Y + dy);
     }
 
     private void OnVideoDragReleased(object? sender, PointerReleasedEventArgs e)
     {
-        var dx = Position.X - _videoPressWindowPos.X;
-        var dy = Position.Y - _videoPressWindowPos.Y;
-        if (Math.Abs(dx) < 4 && Math.Abs(dy) < 4
-            && (DateTime.UtcNow - _videoPressTime).TotalMilliseconds < 300)
+        e.Pointer.Capture(null);
+        if (!_videoDragActive && (DateTime.UtcNow - _videoPressTime).TotalMilliseconds < 300)
             OnPlayPauseClicked(null, null!);
+        _videoDragActive = false;
     }
 
     private void OnResizePressed(object? sender, PointerPressedEventArgs e)

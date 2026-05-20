@@ -28,6 +28,7 @@
         <!-- full-window drag surface, behind everything -->
         <Border Background="Transparent"
                 PointerPressed="OnVideoDragPressed"
+                PointerMoved="OnVideoPointerMoved"
                 PointerReleased="OnVideoDragReleased" />
 
         <!-- cornerbutton toggle — top-left, fades in on hover -->
