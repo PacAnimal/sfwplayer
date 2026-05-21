@@ -60,6 +60,10 @@ public partial class MainWindow : Window
     [
         new DoubleTransition { Property = Visual.OpacityProperty, Duration = TimeSpan.FromMilliseconds(200) },
     ];
+    private static readonly Transitions FadeLabel =
+    [
+        new DoubleTransition { Property = Visual.OpacityProperty, Duration = TimeSpan.FromMilliseconds(200) },
+    ];
     private static readonly Transitions FadeOutPadlock =
     [
         new DoubleTransition { Property = Visual.OpacityProperty, Duration = TimeSpan.FromMilliseconds(400) },
@@ -225,8 +229,12 @@ public partial class MainWindow : Window
 
     private void UpdateQueueMenuItems()
     {
-        PrevMenuItem.IsEnabled = _queue.Count > 0 && _queueIndex > 0;
-        NextMenuItem.IsEnabled = _queue.Count > 0 && _queueIndex < _queue.Count - 1;
+        var hasPrev = _queue.Count > 0 && _queueIndex > 0;
+        var hasNext = _queue.Count > 0 && _queueIndex < _queue.Count - 1;
+        PrevMenuItem.IsEnabled = hasPrev;
+        NextMenuItem.IsEnabled = hasNext;
+        PrevButton.IsEnabled = hasPrev;
+        NextButton.IsEnabled = hasNext;
     }
 
     private async Task RefreshQueueAsync(string playlistId, CancellationToken cancel)
@@ -404,6 +412,9 @@ public partial class MainWindow : Window
             Opacity = _targetOpacity;
         }
 
+        LoadingLabel.Transitions = FadeLabel;
+        LoadingLabel.Opacity = showControls ? 0.33 : 1.0;
+
         if (_isLocked)
         {
             // locked: padlock always visible; brightens on hover so user can find and click it
@@ -447,7 +458,7 @@ public partial class MainWindow : Window
     private void ShowHint()
     {
         TrackTitle.IsVisible = false;
-        LoadingLabel.Text = "Right-click to select a playlist";
+        LoadingLabel.Text = "Right-click to select media";
         LoadingLabel.IsVisible = true;
     }
 

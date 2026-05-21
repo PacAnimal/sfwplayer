@@ -55,9 +55,9 @@
             </Viewbox>
         </Button>
 
-        <!-- idle hint / loading indicator -->
+        <!-- idle hint / loading indicator; offset upward to clear the centered play button -->
         <TextBlock x:Name="LoadingLabel"
-                   Text="Right-click to select a playlist"
+                   Text="Right-click to select media"
                    Foreground="#80FFFFFF"
                    FontSize="14"
                    HorizontalAlignment="Center"
@@ -104,14 +104,29 @@
                             Minimum="0" Maximum="1"
                             SmallChange="0.01" LargeChange="0.05"
                             Theme="{StaticResource ThinSlider}" />
-                    <Grid ColumnDefinitions="22,Auto,*,Auto,Auto,10,Auto,Auto">
-                        <!-- col 0: spacer that clears the floating play/pause cornerbutton -->
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,10,Auto,Auto">
                         <TextBlock x:Name="TimeLabel"
-                                   Grid.Column="1" Classes="label"
+                                   Grid.Column="0" Classes="label"
                                    VerticalAlignment="Bottom"
-                                   Text="0:00 / 0:00" Margin="5,0,0,2" />
+                                   Text="0:00 / 0:00" Margin="0,0,0,2" />
+                        <!-- opacity icon: half-filled circle -->
+                        <Viewbox Grid.Column="2" Width="12" Height="12"
+                                 VerticalAlignment="Center" Margin="0,0,2,0">
+                            <Grid Width="24" Height="24">
+                                <Ellipse Width="18" Height="18"
+                                         Stroke="White" StrokeThickness="2"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Path Fill="White"
+                                      Data="M12 3 L12 21 A9 9 0 0 1 12 3 Z" />
+                            </Grid>
+                        </Viewbox>
+                        <Slider x:Name="OpacitySlider"
+                                Grid.Column="3" Width="58"
+                                Minimum="0.1" Maximum="1.0" Value="1.0"
+                                SmallChange="0.05"
+                                Theme="{StaticResource ThinSlider}" />
                         <Button x:Name="MuteButton"
-                                Grid.Column="3" Classes="ctrl"
+                                Grid.Column="5" Classes="ctrl"
                                 Click="OnMuteClicked">
                             <Viewbox Width="13" Height="13">
                                 <Grid Width="24" Height="24">
@@ -128,46 +143,65 @@
                             </Viewbox>
                         </Button>
                         <Slider x:Name="VolumeSlider"
-                                Grid.Column="4" Width="58"
+                                Grid.Column="6" Width="58"
                                 Minimum="0" Maximum="150" Value="80"
-                                Theme="{StaticResource ThinSlider}" />
-                        <!-- opacity icon: half-filled circle -->
-                        <Viewbox Grid.Column="6" Width="12" Height="12"
-                                 VerticalAlignment="Center" Margin="0,0,2,0">
-                            <Grid Width="24" Height="24">
-                                <Ellipse Width="18" Height="18"
-                                         Stroke="White" StrokeThickness="2"
-                                         HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                <Path Fill="White"
-                                      Data="M12 3 L12 21 A9 9 0 0 1 12 3 Z" />
-                            </Grid>
-                        </Viewbox>
-                        <Slider x:Name="OpacitySlider"
-                                Grid.Column="7" Width="58"
-                                Minimum="0.1" Maximum="1.0" Value="1.0"
-                                SmallChange="0.05"
                                 Theme="{StaticResource ThinSlider}" />
                     </Grid>
                 </StackPanel>
             </Border>
 
-            <!-- play/pause button: bottom-left, mirrors close button -->
-            <Button x:Name="PlayPauseButton"
-                    Classes="cornerbutton"
+            <!-- prev: left side, vertically centered -->
+            <Button x:Name="PrevButton"
+                    Classes="videobutton"
                     ZIndex="10"
                     HorizontalAlignment="Left"
-                    VerticalAlignment="Bottom"
-                    Margin="4.5,0,0,4.5"
+                    VerticalAlignment="Center"
+                    Margin="16,0,0,0"
+                    IsEnabled="False"
+                    Click="OnPrevClicked">
+                <Viewbox Width="32" Height="32">
+                    <Grid Width="24" Height="24">
+                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="2"
+                              StrokeLineCap="Round" StrokeJoin="Round"
+                              Data="M15.75 19.5L8.25 12l7.5-7.5" />
+                    </Grid>
+                </Viewbox>
+            </Button>
+
+            <!-- play/pause: centered in video -->
+            <Button x:Name="PlayPauseButton"
+                    Classes="videobutton"
+                    ZIndex="10"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
                     Click="OnPlayPauseClicked">
-                <Viewbox Width="16" Height="16">
+                <Viewbox Width="44" Height="44">
                     <Grid Width="24" Height="24">
                         <Path x:Name="PlayIcon"
-                              Fill="White"
+                              Fill="{Binding $parent[Button].Foreground}"
                               Data="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347c-.75.412-1.667-.13-1.667-.986V5.653z" />
                         <Path x:Name="PauseIcon"
-                              Fill="White"
+                              Fill="{Binding $parent[Button].Foreground}"
                               IsVisible="False"
                               Data="M6 4.5 H10.5 V19.5 H6 Z M13.5 4.5 H18 V19.5 H13.5 Z" />
+                    </Grid>
+                </Viewbox>
+            </Button>
+
+            <!-- next: right side, vertically centered -->
+            <Button x:Name="NextButton"
+                    Classes="videobutton"
+                    ZIndex="10"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Margin="0,0,16,0"
+                    IsEnabled="False"
+                    Click="OnNextClicked">
+                <Viewbox Width="32" Height="32">
+                    <Grid Width="24" Height="24">
+                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="2"
+                              StrokeLineCap="Round" StrokeJoin="Round"
+                              Data="M8.25 4.5l7.5 7.5-7.5 7.5" />
                     </Grid>
                 </Viewbox>
             </Button>
