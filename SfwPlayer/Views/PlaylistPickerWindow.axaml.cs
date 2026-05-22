@@ -10,6 +10,10 @@ using Microsoft.Extensions.Logging;
 using SfwPlayer.Models;
 using SfwPlayer.Platform.MacOS;
 using SfwPlayer.Services;
+#if IS_WINDOWS
+using System.Net;
+using SfwPlayer.Platform.Windows;
+#endif
 
 namespace SfwPlayer.Views;
 
@@ -40,7 +44,7 @@ public partial class PlaylistPickerWindow : Window
         {
             ShowStatus("Sign in to YouTube to continue...");
             var ok = await SignInAsync();
-            if (!ok) { ShowStatus("Sign-in cancelled or failed."); return; }
+            if (!ok) return;
         }
 
         await LoadPlaylistsAsync();
@@ -48,9 +52,21 @@ public partial class PlaylistPickerWindow : Window
 
     private async Task<bool> SignInAsync()
     {
+#if IS_WINDOWS
+        if (OperatingSystem.IsWindows())
+        {
+            var hwnd = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+            List<Cookie>? wCookies;
+            try { wCookies = await WindowsWebAuth.SignInInWindowAsync(hwnd, _cts.Token); }
+            catch { ShowStatus("Sign-in failed. Ensure Microsoft Edge WebView2 Runtime is installed."); return false; }
+            if (wCookies == null || wCookies.Count == 0) { ShowStatus("Sign-in cancelled or failed."); return false; }
+            _cookies.Save(wCookies);
+            return _cookies.HasCookies;
+        }
+#endif
         if (!OperatingSystem.IsMacOS())
         {
-            ShowStatus("Sign-in is only supported on macOS.");
+            ShowStatus("Sign-in is not supported on this platform.");
             return false;
         }
 
@@ -59,7 +75,11 @@ public partial class PlaylistPickerWindow : Window
         var nsView = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
         var cookies = await AppleWebAuth.SignInInWindowAsync(nsView, _cts.Token);
         Title = prevTitle;
-        if (cookies == null || cookies.Count == 0) return false;
+        if (cookies == null || cookies.Count == 0)
+        {
+            ShowStatus("Sign-in cancelled or failed.");
+            return false;
+        }
         _cookies.Save(cookies);
         return _cookies.HasCookies;
     }
@@ -160,7 +180,10 @@ public partial class PlaylistPickerWindow : Window
     private void OnSignOutClicked(object? sender, RoutedEventArgs e)
     {
         _cookies.Clear();
-        AppleWebAuth.ClearWebKitSession();
+        if (OperatingSystem.IsMacOS()) AppleWebAuth.ClearWebKitSession();
+#if IS_WINDOWS
+        else if (OperatingSystem.IsWindows()) WindowsWebAuth.ClearSession();
+#endif
         PlaylistList.ItemsSource = null;
         VideoList.ItemsSource = null;
         _videoItems = null;
