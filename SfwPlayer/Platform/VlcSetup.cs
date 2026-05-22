@@ -35,6 +35,12 @@ public static class VlcSetup
 
     public static void Initialize()
     {
+        if (OperatingSystem.IsWindows())
+        {
+            var winLibDir = Path.Combine(AppContext.BaseDirectory, "libvlc", "win-x64");
+            if (Directory.Exists(winLibDir)) Core.Initialize(winLibDir);
+            return;
+        }
         if (!OperatingSystem.IsMacOS() || RuntimeInformation.OSArchitecture != Architecture.Arm64) return;
 
         var libDir = Path.Combine(AppContext.BaseDirectory, "libvlc", "osx-arm64");

@@ -447,7 +447,7 @@ public class InnerTubeServiceTests
         Assume.That(declared, Is.GreaterThan(0), "Watch Later appears empty or count not parseable; skipping");
 
         var videos = await svc.GetPlaylistVideosAsync("WL", cancel);
-        Assert.That(videos.Count, Is.EqualTo(declared),
+        Assert.That(videos, Has.Count.EqualTo(declared),
             $"Watch Later declared {declared} videos but loaded {videos.Count}");
     }
 

@@ -25,14 +25,14 @@ internal static class AppleWebAuth
     private struct NsRect { public double X, Y, W, H; }
 
     // cookie-reading block for WKHTTPCookieStore.getAllCookies:
-    private static readonly IntPtr _cookieBlockPtr;
-
-    private static readonly IntPtr _noopBlockPtr;
+    private static readonly IntPtr CookieBlockPtr;
+    private static readonly IntPtr NoopBlockPtr;
 
     // SfwWebDelegate implements WKNavigationDelegate + NSWindowDelegate
-    private static readonly IntPtr _delegateClass;
+    private static readonly IntPtr DelegateClass;
+
     // dispatch_get_main_queue() is a C macro for &_dispatch_main_q — resolve at startup
-    private static readonly IntPtr _mainQueue;
+    private static readonly IntPtr MainQueue;
 
     private static volatile TaskCompletionSource<bool>? _tcs;
     private static volatile TaskCompletionSource<List<Cookie>>? _cookieTcs;
@@ -57,7 +57,7 @@ internal static class AppleWebAuth
 
         // dispatch_get_main_queue() is a C macro expanding to &_dispatch_main_q
         if (NativeLibrary.TryLoad("/usr/lib/system/libdispatch.dylib", typeof(AppleWebAuth).Assembly, null, out var dispatchLib))
-            NativeLibrary.TryGetExport(dispatchLib, "_dispatch_main_q", out _mainQueue);
+            NativeLibrary.TryGetExport(dispatchLib, "_dispatch_main_q", out MainQueue);
 
         var cookieDesc = (BlockDescriptor*)NativeMemory.Alloc((nuint)sizeof(BlockDescriptor));
         cookieDesc->Reserved = 0;
@@ -69,7 +69,7 @@ internal static class AppleWebAuth
         cookieBlock->Reserved = 0;
         cookieBlock->Invoke = (IntPtr)(delegate* unmanaged[Cdecl]<BlockLiteral*, IntPtr, void>)&OnGetCookies;
         cookieBlock->Descriptor = (IntPtr)cookieDesc;
-        _cookieBlockPtr = (IntPtr)cookieBlock;
+        CookieBlockPtr = (IntPtr)cookieBlock;
 
         var noopDesc = (BlockDescriptor*)NativeMemory.Alloc((nuint)sizeof(BlockDescriptor));
         noopDesc->Reserved = 0;
@@ -81,7 +81,7 @@ internal static class AppleWebAuth
         noopBlock->Reserved = 0;
         noopBlock->Invoke = (IntPtr)(delegate* unmanaged[Cdecl]<BlockLiteral*, void>)&NoopBlockInvoke;
         noopBlock->Descriptor = (IntPtr)noopDesc;
-        _noopBlockPtr = (IntPtr)noopBlock;
+        NoopBlockPtr = (IntPtr)noopBlock;
 
         var nso = objc_getClass("NSObject");
 
@@ -94,16 +94,16 @@ internal static class AppleWebAuth
         objc_registerClassPair(contextClass);
 
         // SfwWebDelegate: WKNavigationDelegate + NSWindowDelegate
-        _delegateClass = objc_allocateClassPair(nso, "SfwWebDelegate", 0);
-        class_addMethod(_delegateClass,
+        DelegateClass = objc_allocateClassPair(nso, "SfwWebDelegate", 0);
+        class_addMethod(DelegateClass,
             sel_registerName("webView:didFinishNavigation:"),
             (IntPtr)(delegate* unmanaged[Cdecl]<IntPtr, IntPtr, IntPtr, IntPtr, void>)&OnNavFinished,
             "v32@0:8@16@24");
-        class_addMethod(_delegateClass,
+        class_addMethod(DelegateClass,
             sel_registerName("windowWillClose:"),
             (IntPtr)(delegate* unmanaged[Cdecl]<IntPtr, IntPtr, IntPtr, void>)&OnWindowClose,
             "v24@0:8@16");
-        objc_registerClassPair(_delegateClass);
+        objc_registerClassPair(DelegateClass);
     }
 
     // legacy: kept so test assertions on SfwAuthContext registration still pass
@@ -155,7 +155,7 @@ internal static class AppleWebAuth
         var dataTypes = msg_ptr(objc_getClass("WKWebsiteDataStore"), sel_registerName("allWebsiteDataTypes"));
         var distantPast = msg_ptr(objc_getClass("NSDate"), sel_registerName("distantPast"));
         msg_void_p_p_p(dataStore, sel_registerName("removeDataOfTypes:modifiedSince:completionHandler:"),
-            dataTypes, distantPast, _noopBlockPtr);
+            dataTypes, distantPast, NoopBlockPtr);
     }
 
     // nsView is Avalonia's platform handle (NSView*); obtains NSWindow via [nsView window]
@@ -199,7 +199,7 @@ internal static class AppleWebAuth
         msg_void_nuint(webView, sel_registerName("setAutoresizingMask:"), 18);
         msg_void_p(contentView, sel_registerName("addSubview:"), webView);
 
-        var del = msg_ptr(msg_ptr(_delegateClass, sel_registerName("alloc")), sel_registerName("init"));
+        var del = msg_ptr(msg_ptr(DelegateClass, sel_registerName("alloc")), sel_registerName("init"));
         msg_void_p(webView, sel_registerName("setNavigationDelegate:"), del);
 
         var nsStrClass = objc_getClass("NSString");
@@ -221,7 +221,7 @@ internal static class AppleWebAuth
         _cookieTcs = new TaskCompletionSource<List<Cookie>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var dataStore = msg_ptr(objc_getClass("WKWebsiteDataStore"), sel_registerName("defaultDataStore"));
         var cookieStore = msg_ptr(dataStore, sel_registerName("httpCookieStore"));
-        msg_void_p(cookieStore, sel_registerName("getAllCookies:"), _cookieBlockPtr);
+        msg_void_p(cookieStore, sel_registerName("getAllCookies:"), CookieBlockPtr);
         return await _cookieTcs.Task;
     }
 
@@ -273,7 +273,7 @@ internal static class AppleWebAuth
         await _tcs.Task;
 
         // orderOut: must run on main queue; we may be on a thread pool thread here
-        dispatch_async_f(_mainQueue, webWindow, DoOrderOutPtr());
+        dispatch_async_f(MainQueue, webWindow, DoOrderOutPtr());
 
         if (!_succeeded) return null;
 
@@ -281,7 +281,7 @@ internal static class AppleWebAuth
         _cookieTcs = new TaskCompletionSource<List<Cookie>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var dataStore = msg_ptr(objc_getClass("WKWebsiteDataStore"), sel_registerName("defaultDataStore"));
         var cookieStore = msg_ptr(dataStore, sel_registerName("httpCookieStore"));
-        msg_void_p(cookieStore, sel_registerName("getAllCookies:"), _cookieBlockPtr);
+        msg_void_p(cookieStore, sel_registerName("getAllCookies:"), CookieBlockPtr);
         return await _cookieTcs.Task;
     }
 
@@ -311,7 +311,7 @@ internal static class AppleWebAuth
         msg_void_nuint(webView, sel_registerName("setAutoresizingMask:"), 18);
         msg_void_p(contentView, sel_registerName("addSubview:"), webView);
 
-        var del = msg_ptr(msg_ptr(_delegateClass, sel_registerName("alloc")), sel_registerName("init"));
+        var del = msg_ptr(msg_ptr(DelegateClass, sel_registerName("alloc")), sel_registerName("init"));
         msg_void_p(webView, sel_registerName("setNavigationDelegate:"), del);
         msg_void_p(window, sel_registerName("setDelegate:"), del);
 

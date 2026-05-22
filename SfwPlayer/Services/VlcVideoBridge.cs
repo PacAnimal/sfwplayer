@@ -6,6 +6,7 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using LibVLCSharp.Shared;
 using SfwPlayer.Platform.MacOS;
+using WinNative = SfwPlayer.Platform.Windows.Native;
 
 namespace SfwPlayer.Services;
 
@@ -191,19 +192,18 @@ public sealed class VlcVideoBridge : IDisposable
     // printing harmless get_buffer() errors. Suppress fd 2 for the duration of Stop() only.
     public Task StopAsync() => Task.Run(() =>
     {
-        int saved = -1;
         if (OperatingSystem.IsMacOS())
         {
             var devNull = Native.open("/dev/null", Native.OWronly);
-            saved = Native.dup(2);
+            var saved = Native.dup(2);
             _ = Native.dup2(devNull, 2);
             _ = Native.close(devNull);
+            try { Player.Stop(); }
+            finally { _ = Native.dup2(saved, 2); _ = Native.close(saved); }
+            return;
         }
-        try { Player.Stop(); }
-        finally
-        {
-            if (saved >= 0) { _ = Native.dup2(saved, 2); _ = Native.close(saved); }
-        }
+        if (OperatingSystem.IsWindows()) { WithStderrSuppressed(Player.Stop); return; }
+        Player.Stop();
     });
 
     public void Dispose()
@@ -213,10 +213,26 @@ public sealed class VlcVideoBridge : IDisposable
         // only stop if not already stopped (StopAsync may have already done it)
         if (Player.State is not (VLCState.Stopped or VLCState.NothingSpecial or VLCState.Error))
             Player.Stop();
-        Player.Dispose();
-        _media?.Dispose();
-        _vlc.Dispose();
+        if (OperatingSystem.IsWindows())
+            WithStderrSuppressed(() => { Player.Dispose(); _media?.Dispose(); _vlc.Dispose(); });
+        else
+        {
+            Player.Dispose(); _media?.Dispose(); _vlc.Dispose();
+        }
         _pinY0.Free(); _pinU0.Free(); _pinV0.Free();
         _pinY1.Free(); _pinU1.Free(); _pinV1.Free();
+    }
+
+    // suppress native fd 2 (stderr) during action — catches get_buffer() decoder noise on Windows
+    private static void WithStderrSuppressed(Action action)
+    {
+        var nullHandle = WinNative.CreateFileW("nul", WinNative.GenericWrite,
+            WinNative.FileShareAll, IntPtr.Zero, WinNative.OpenExisting, 0, IntPtr.Zero);
+        var devNull = WinNative._open_osfhandle(nullHandle, WinNative.OWronly);
+        var saved = WinNative._dup(2);
+        _ = WinNative._dup2(devNull, 2);
+        _ = WinNative._close(devNull);
+        try { action(); }
+        finally { _ = WinNative._dup2(saved, 2); _ = WinNative._close(saved); }
     }
 }

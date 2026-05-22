@@ -16,7 +16,7 @@ internal static partial class WindowsWebAuth
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "SfwPlayer", "WebView2");
 
-    private const uint WM_SIZE = 0x0005;
+    private const uint WmSize = 0x0005;
     private delegate nint SubclassProc(IntPtr hwnd, uint msg, nint wParam, nint lParam, nuint id, nuint refData);
 
     internal static async Task<List<Cookie>?> SignInInWindowAsync(IntPtr hwnd, CancellationToken ct = default)
@@ -31,7 +31,7 @@ internal static partial class WindowsWebAuth
         // resize WebView2 with the parent window
         nint OnSize(IntPtr h, uint msg, nint wp, nint lp, nuint id, nuint _)
         {
-            if (msg == WM_SIZE)
+            if (msg == WmSize)
                 controller.Bounds = new System.Drawing.Rectangle(0, 0, (int)(lp & 0xFFFF), (int)((uint)lp >> 16));
             return DefSubclassProc(h, msg, wp, lp);
         }
@@ -70,7 +70,11 @@ internal static partial class WindowsWebAuth
         finally
         {
             RemoveWindowSubclass(hwnd, subclassProc, 1);
-            try { controller.Close(); } catch { }
+            try { controller.Close(); }
+            catch
+            {
+                // ignored
+            }
         }
     }
 
@@ -81,7 +85,10 @@ internal static partial class WindowsWebAuth
             if (Directory.Exists(UserDataPath))
                 Directory.Delete(UserDataPath, recursive: true);
         }
-        catch { }
+        catch
+        {
+            // ignored
+        }
     }
 
     private static Cookie? TryToNetCookie(CoreWebView2Cookie c)
@@ -99,13 +106,13 @@ internal static partial class WindowsWebAuth
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool GetClientRect(IntPtr hwnd, out RECT rect);
+    private static partial void GetClientRect(IntPtr hwnd, out Rect rect);
 
     [DllImport("comctl32.dll")] private static extern bool SetWindowSubclass(IntPtr hwnd, SubclassProc proc, nuint id, nuint refData);
     [DllImport("comctl32.dll")] private static extern bool RemoveWindowSubclass(IntPtr hwnd, SubclassProc proc, nuint id);
     [DllImport("comctl32.dll")] private static extern nint DefSubclassProc(IntPtr hwnd, uint msg, nint wParam, nint lParam);
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct RECT { public int Left, Top, Right, Bottom; }
+    private struct Rect { public int Left, Top, Right, Bottom; }
 }
 #endif
