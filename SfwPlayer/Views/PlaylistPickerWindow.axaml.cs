@@ -19,6 +19,8 @@ namespace SfwPlayer.Views;
 
 public partial class PlaylistPickerWindow : Window
 {
+    private static string? _lastSelectedPlaylistId;
+
     private readonly InnerTubeService _innerTube;
     private readonly CookieStore _cookies;
     private readonly ILogger<PlaylistPickerWindow> _log;
@@ -99,6 +101,10 @@ public partial class PlaylistPickerWindow : Window
             PlaylistList.ItemsSource = items;
             SignOutButton.IsVisible = true;
             HideStatus();
+            var target = (_lastSelectedPlaylistId != null ? items.FirstOrDefault(p => p.Id == _lastSelectedPlaylistId) : null)
+                ?? items[0];
+            PlaylistList.SelectedItem = target;
+            PlaylistList.ScrollIntoView(target);
         }
         catch (Exception ex)
         {
@@ -110,6 +116,7 @@ public partial class PlaylistPickerWindow : Window
     private async void OnPlaylistSelected(object? sender, SelectionChangedEventArgs e)
     {
         if (PlaylistList.SelectedItem is not PlaylistInfo playlist) return;
+        _lastSelectedPlaylistId = playlist.Id;
 
         VideoList.ItemsSource = null;
         _videoItems = null;
