@@ -22,7 +22,7 @@ public class PlaybackTests
         if (sfwExe == null)
             Assert.Ignore("SfwPlayer executable not found; build the main project first");
 
-        var psi = new ProcessStartInfo(sfwExe!)
+        var psi = new ProcessStartInfo(sfwExe)
         {
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -54,14 +54,14 @@ public class PlaybackTests
     [CancelAfter(60_000)]
     public async Task VmemReceivesFrames(CancellationToken cancel)
     {
-        const int MaxW = 1280, MaxH = 720;
+        const int maxW = 1280, maxH = 720;
         uint actualWidth = 0, actualHeight = 0;
         var frameReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         cancel.Register(() => frameReceived.TrySetCanceled());
 
-        var y = new byte[MaxW * MaxH];
-        var u = new byte[MaxW / 2 * (MaxH / 2)];
-        var v = new byte[MaxW / 2 * (MaxH / 2)];
+        var y = new byte[maxW * maxH];
+        var u = new byte[maxW / 2 * (maxH / 2)];
+        var v = new byte[maxW / 2 * (maxH / 2)];
         var pinY = GCHandle.Alloc(y, GCHandleType.Pinned);
         var pinU = GCHandle.Alloc(u, GCHandleType.Pinned);
         var pinV = GCHandle.Alloc(v, GCHandleType.Pinned);

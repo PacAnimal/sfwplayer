@@ -79,7 +79,7 @@ public class ClickThrough(Window window, ILogger<ClickThrough> log)
     }
 
     // captured at resize start — avoids absolute Avalonia→NSWindow coordinate conversion
-    private MacNative.NSRect _resizeStartNSFrame;
+    private MacNative.NsRect _resizeStartNsFrame;
     private int _resizeStartAvX, _resizeStartAvY;
     private double _resizeStartAvW, _resizeStartAvH;
     private bool _hasResizeStartFrame;
@@ -91,9 +91,9 @@ public class ClickThrough(Window window, ILogger<ClickThrough> log)
         _resizeStartAvW = size.Width; _resizeStartAvH = size.Height;
         _hasResizeStartFrame = false;
         if (!OperatingSystem.IsMacOS() || _handle == IntPtr.Zero) return;
-        var nsWin = GetNSWindow();
+        var nsWin = GetNsWindow();
         if (nsWin == IntPtr.Zero) return;
-        _resizeStartNSFrame = MacNative.objc_msgSend_NSRect(nsWin, MacNative.sel_registerName("frame"));
+        _resizeStartNsFrame = MacNative.objc_msgSend_NSRect(nsWin, MacNative.sel_registerName("frame"));
         _hasResizeStartFrame = true;
     }
 
@@ -103,7 +103,7 @@ public class ClickThrough(Window window, ILogger<ClickThrough> log)
     {
         if (OperatingSystem.IsMacOS() && _hasResizeStartFrame && _handle != IntPtr.Zero)
         {
-            var nsWin = GetNSWindow();
+            var nsWin = GetNsWindow();
             if (nsWin != IntPtr.Zero)
             {
                 var scale = window.RenderScaling;
@@ -116,12 +116,12 @@ public class ClickThrough(Window window, ILogger<ClickThrough> log)
                 //   newNsY = startNsY - dY - dH
                 // because moving the top-left down (+dY) moves the bottom down too,
                 // and increasing height also moves the bottom down (in Y-up space, both subtract from Y)
-                var frame = new MacNative.NSRect
+                var frame = new MacNative.NsRect
                 {
-                    X = _resizeStartNSFrame.X + dX,
-                    Y = _resizeStartNSFrame.Y - dY - dH,
-                    Width = _resizeStartNSFrame.Width + dW,
-                    Height = _resizeStartNSFrame.Height + dH,
+                    X = _resizeStartNsFrame.X + dX,
+                    Y = _resizeStartNsFrame.Y - dY - dH,
+                    Width = _resizeStartNsFrame.Width + dW,
+                    Height = _resizeStartNsFrame.Height + dH,
                 };
                 MacNative.objc_msgSend_void_NSRect_bool(nsWin, MacNative.sel_registerName("setFrame:display:"), frame, true);
                 return;
@@ -141,7 +141,7 @@ public class ClickThrough(Window window, ILogger<ClickThrough> log)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                var nsWin = GetNSWindow();
+                var nsWin = GetNsWindow();
                 if (nsWin == IntPtr.Zero) return false;
                 var pt = MacNative.objc_msgSend_CGPoint(nsWin, MacNative.sel_registerName("mouseLocationOutsideOfEventStream"));
                 var size = window.ClientSize;
@@ -155,14 +155,14 @@ public class ClickThrough(Window window, ILogger<ClickThrough> log)
     // checks if cursor is over a rect in logical (DIP) coordinates, Y-down from window top-left.
     // on macOS uses mouseLocationOutsideOfEventStream (same technique as IsCursorOverWindow) to avoid
     // any absolute screen-coordinate mismatch between CGEventGetLocation and window.Position.
-    public bool IsCursorOverRect(Avalonia.Rect logicalRect)
+    public bool IsCursorOverRect(Rect logicalRect)
     {
         if (_handle == IntPtr.Zero) return false;
         try
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                var nsWin = GetNSWindow();
+                var nsWin = GetNsWindow();
                 if (nsWin == IntPtr.Zero) return false;
                 var pt = MacNative.objc_msgSend_CGPoint(nsWin, MacNative.sel_registerName("mouseLocationOutsideOfEventStream"));
                 // NSWindow Y is up from bottom-left; convert to Y-down from top-left
@@ -192,7 +192,7 @@ public class ClickThrough(Window window, ILogger<ClickThrough> log)
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 return (WinNative.GetAsyncKeyState(0x01) & 0x8000) != 0;
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                return MacNative.CGEventSourceButtonState(MacNative.kCGEventSourceStateCombinedSessionState, 0);
+                return MacNative.CGEventSourceButtonState(MacNative.KCgEventSourceStateCombinedSessionState, 0);
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 return IsLeftButtonLinux();
         }
@@ -204,14 +204,14 @@ public class ClickThrough(Window window, ILogger<ClickThrough> log)
 
     void EnableWindows()
     {
-        var s = WinNative.GetWindowLong(_handle, WinNative.GWL_EXSTYLE);
-        _ = WinNative.SetWindowLong(_handle, WinNative.GWL_EXSTYLE, s | WinNative.WS_EX_TRANSPARENT | WinNative.WS_EX_LAYERED);
+        var s = WinNative.GetWindowLong(_handle, WinNative.GwlExstyle);
+        _ = WinNative.SetWindowLong(_handle, WinNative.GwlExstyle, s | WinNative.WsExTransparent | WinNative.WsExLayered);
     }
 
     void DisableWindows()
     {
-        var s = WinNative.GetWindowLong(_handle, WinNative.GWL_EXSTYLE);
-        _ = WinNative.SetWindowLong(_handle, WinNative.GWL_EXSTYLE, s & ~WinNative.WS_EX_TRANSPARENT);
+        var s = WinNative.GetWindowLong(_handle, WinNative.GwlExstyle);
+        _ = WinNative.SetWindowLong(_handle, WinNative.GwlExstyle, s & ~WinNative.WsExTransparent);
     }
 
     static PixelPoint GetCursorWindows()
@@ -222,14 +222,14 @@ public class ClickThrough(Window window, ILogger<ClickThrough> log)
 
     // ── macOS ─────────────────────────────────────────────────────────────────
 
-    IntPtr GetNSWindow() =>
+    IntPtr GetNsWindow() =>
         MacNative.objc_msgSend_ptr(_handle, MacNative.sel_registerName("window"));
 
     void EnableMac() =>
-        MacNative.objc_msgSend_void_bool(GetNSWindow(), MacNative.sel_registerName("setIgnoresMouseEvents:"), true);
+        MacNative.objc_msgSend_void_bool(GetNsWindow(), MacNative.sel_registerName("setIgnoresMouseEvents:"), true);
 
     void DisableMac() =>
-        MacNative.objc_msgSend_void_bool(GetNSWindow(), MacNative.sel_registerName("setIgnoresMouseEvents:"), false);
+        MacNative.objc_msgSend_void_bool(GetNsWindow(), MacNative.sel_registerName("setIgnoresMouseEvents:"), false);
 
     PixelPoint GetCursorMac()
     {

@@ -190,8 +190,8 @@ public class BrowserCookieReaderTests
     {
         var buf = new List<byte>();
         buf.AddRange(Encoding.ASCII.GetBytes("cook")); // file magic
-        buf.AddRange(BE32(pages.Count));               // page count
-        foreach (var p in pages) buf.AddRange(BE32(p.Length)); // page sizes
+        buf.AddRange(Be32(pages.Count));               // page count
+        foreach (var p in pages) buf.AddRange(Be32(p.Length)); // page sizes
         foreach (var p in pages) buf.AddRange(p);               // page data
         return [.. buf];
     }
@@ -211,8 +211,8 @@ public class BrowserCookieReaderTests
 
         var buf = new List<byte>();
         buf.AddRange([0x00, 0x00, 0x01, 0x00]); // page magic
-        buf.AddRange(LE32(cookieRecords.Count));
-        foreach (var off in offsets) buf.AddRange(LE32(off));
+        buf.AddRange(Le32(cookieRecords.Count));
+        foreach (var off in offsets) buf.AddRange(Le32(off));
         foreach (var rec in cookieRecords) buf.AddRange(rec);
         return [.. buf];
     }
@@ -238,18 +238,18 @@ public class BrowserCookieReaderTests
         var recordSize = valueOff + valueB.Length;
 
         var buf = new List<byte>();
-        buf.AddRange(LE32(recordSize));
-        buf.AddRange(LE32(0));           // version
-        buf.AddRange(LE32(flags));       // flags
-        buf.AddRange(LE32(0));           // has_port
-        buf.AddRange(LE32(domainOff));
-        buf.AddRange(LE32(nameOff));
-        buf.AddRange(LE32(pathOff));
-        buf.AddRange(LE32(valueOff));
-        buf.AddRange(LE32(0));           // comment offset
-        buf.AddRange(LE32(0));           // comment url offset
-        buf.AddRange(DoubleLE(expiryMacAbs));
-        buf.AddRange(DoubleLE(0.0));     // creation
+        buf.AddRange(Le32(recordSize));
+        buf.AddRange(Le32(0));           // version
+        buf.AddRange(Le32(flags));       // flags
+        buf.AddRange(Le32(0));           // has_port
+        buf.AddRange(Le32(domainOff));
+        buf.AddRange(Le32(nameOff));
+        buf.AddRange(Le32(pathOff));
+        buf.AddRange(Le32(valueOff));
+        buf.AddRange(Le32(0));           // comment offset
+        buf.AddRange(Le32(0));           // comment url offset
+        buf.AddRange(DoubleLe(expiryMacAbs));
+        buf.AddRange(DoubleLe(0.0));     // creation
         buf.AddRange(domainB);
         buf.AddRange(nameB);
         buf.AddRange(pathB);
@@ -257,7 +257,7 @@ public class BrowserCookieReaderTests
         return [.. buf];
     }
 
-    private static byte[] BE32(int v) => [(byte)(v >> 24), (byte)(v >> 16), (byte)(v >> 8), (byte)v];
-    private static byte[] LE32(int v) => [(byte)v, (byte)(v >> 8), (byte)(v >> 16), (byte)(v >> 24)];
-    private static byte[] DoubleLE(double v) => BitConverter.GetBytes(v);
+    private static byte[] Be32(int v) => [(byte)(v >> 24), (byte)(v >> 16), (byte)(v >> 8), (byte)v];
+    private static byte[] Le32(int v) => [(byte)v, (byte)(v >> 8), (byte)(v >> 16), (byte)(v >> 24)];
+    private static byte[] DoubleLe(double v) => BitConverter.GetBytes(v);
 }

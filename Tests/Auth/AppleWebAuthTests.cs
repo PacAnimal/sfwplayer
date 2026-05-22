@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using SfwPlayer.Platform.MacOS;
 using Tests.Setup;
 
@@ -24,7 +23,7 @@ public class AppleWebAuthTests
     {
         if (!OperatingSystem.IsMacOS()) Assert.Ignore("macOS only");
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
         var result = await AppleWebAuth.SignInAsync(IntPtr.Zero);
         sw.Stop();
 
@@ -61,7 +60,7 @@ public class AppleWebAuthTests
         if (sfwExe == null)
             Assert.Ignore("SfwPlayer executable not found; build the main project first");
 
-        var psi = new ProcessStartInfo(sfwExe!)
+        var psi = new ProcessStartInfo(sfwExe)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,

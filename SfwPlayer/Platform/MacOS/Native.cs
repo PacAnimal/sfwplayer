@@ -5,14 +5,14 @@ using System.Runtime.InteropServices;
 
 namespace SfwPlayer.Platform.MacOS;
 
-internal static partial class Native
+internal static class Native
 {
-    internal const int kCGEventSourceStateCombinedSessionState = 1;
-    internal const ulong kCGEventFlagMaskControl = 1UL << 18;
-    internal const ulong kCGEventFlagMaskAlternate = 1UL << 19;
+    internal const int KCgEventSourceStateCombinedSessionState = 1;
+    internal const ulong KCgEventFlagMaskControl = 1UL << 18;
+    internal const ulong KCgEventFlagMaskAlternate = 1UL << 19;
 
     [StructLayout(LayoutKind.Sequential)]
-    internal struct CGPoint { public double X, Y; }
+    internal struct CgPoint { public double X, Y; }
 
     [DllImport("/usr/lib/libobjc.dylib")]
     internal static extern IntPtr objc_getClass(string name);
@@ -24,7 +24,7 @@ internal static partial class Native
     internal static extern IntPtr objc_msgSend_ptr(IntPtr obj, IntPtr sel);
 
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
-    internal static extern CGPoint objc_msgSend_CGPoint(IntPtr obj, IntPtr sel);
+    internal static extern CgPoint objc_msgSend_CGPoint(IntPtr obj, IntPtr sel);
 
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
     internal static extern void objc_msgSend_void_bool(IntPtr obj, IntPtr sel,
@@ -37,16 +37,16 @@ internal static partial class Native
     internal static extern IntPtr CGEventCreate(IntPtr source);
 
     [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
-    internal static extern CGPoint CGEventGetLocation(IntPtr evt);
+    internal static extern CgPoint CGEventGetLocation(IntPtr evt);
 
     [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
     internal static extern void CFRelease(IntPtr cf);
 
     [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
-    internal static extern ulong CGEventSourceFlagsState(int stateID);
+    internal static extern ulong CGEventSourceFlagsState(int stateId);
 
     [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
-    internal static extern bool CGEventSourceButtonState(int stateID, uint button);
+    internal static extern bool CGEventSourceButtonState(int stateId, uint button);
 
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
     internal static extern void objc_msgSend_void_ptr_nint(IntPtr obj, IntPtr sel, IntPtr ptr, nint n);
@@ -64,15 +64,15 @@ internal static partial class Native
     internal static extern ulong objc_msgSend_ulong(IntPtr obj, IntPtr sel);
 
     [StructLayout(LayoutKind.Sequential)]
-    internal struct NSRect { public double X, Y, Width, Height; }
+    internal struct NsRect { public double X, Y, Width, Height; }
 
     // arm64: structs return via regular objc_msgSend, no _stret variant
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
-    internal static extern NSRect objc_msgSend_NSRect(IntPtr obj, IntPtr sel);
+    internal static extern NsRect objc_msgSend_NSRect(IntPtr obj, IntPtr sel);
 
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
     internal static extern void objc_msgSend_void_NSRect_bool(IntPtr obj, IntPtr sel,
-        NSRect rect, [MarshalAs(UnmanagedType.U1)] bool display);
+        NsRect rect, [MarshalAs(UnmanagedType.U1)] bool display);
 
     // nextEventMatchingMask:untilDate:inMode:dequeue:
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
@@ -85,10 +85,10 @@ internal static partial class Native
         [MarshalAs(UnmanagedType.LPStr)] string str);
 
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
-    internal static extern CGPoint objc_msgSend_CGPoint_ptr(IntPtr obj, IntPtr sel, IntPtr arg);
+    internal static extern CgPoint objc_msgSend_CGPoint_ptr(IntPtr obj, IntPtr sel, IntPtr arg);
 
     // POSIX fd primitives
-    internal const int O_WRONLY = 1;
+    internal const int OWronly = 1;
     [DllImport("libSystem.B.dylib")] internal static extern int open([MarshalAs(UnmanagedType.LPStr)] string path, int flags);
     [DllImport("libSystem.B.dylib")] internal static extern int dup(int fd);
     [DllImport("libSystem.B.dylib")] internal static extern int dup2(int oldfd, int newfd);

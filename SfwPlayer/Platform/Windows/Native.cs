@@ -4,19 +4,19 @@ using System.Runtime.InteropServices;
 
 namespace SfwPlayer.Platform.Windows;
 
-internal static partial class Native
+internal static class Native
 {
-    internal const int GWL_EXSTYLE = -20;
-    internal const int WS_EX_TRANSPARENT = 0x00000020;
-    internal const int WS_EX_LAYERED = 0x00080000;
-    internal const int VK_CONTROL = 0x11;
-    internal const int VK_MENU = 0x12; // Alt
+    internal const int GwlExstyle = -20;
+    internal const int WsExTransparent = 0x00000020;
+    internal const int WsExLayered = 0x00080000;
+    internal const int VkControl = 0x11;
+    internal const int VkMenu = 0x12; // Alt
 
     [StructLayout(LayoutKind.Sequential)]
-    internal struct POINT { public int X, Y; }
+    internal struct Point { public int X, Y; }
 
     [DllImport("user32.dll")] internal static extern int GetWindowLong(IntPtr hwnd, int n);
     [DllImport("user32.dll")] internal static extern int SetWindowLong(IntPtr hwnd, int n, int val);
-    [DllImport("user32.dll")] internal static extern bool GetCursorPos(out POINT pt);
+    [DllImport("user32.dll")] internal static extern bool GetCursorPos(out Point pt);
     [DllImport("user32.dll")] internal static extern short GetAsyncKeyState(int vk);
 }

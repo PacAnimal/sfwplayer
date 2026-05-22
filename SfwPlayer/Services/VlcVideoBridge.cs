@@ -15,22 +15,22 @@ public sealed class VlcVideoBridge : IDisposable
     private const int MaxW = 1920;
     private const int MaxH = 1080;
     private const int MaxYSize = MaxW * MaxH;
-    private const int MaxUVSize = (MaxW / 2) * (MaxH / 2);
+    private const int MaxUvSize = (MaxW / 2) * (MaxH / 2);
 
     private readonly LibVLC _vlc;
     private Media? _media;
 
     // double-buffer: two sets of Y/U/V planes; VLC writes to the back, UI reads the front
     private readonly byte[] _y0 = new byte[MaxYSize];
-    private readonly byte[] _u0 = new byte[MaxUVSize];
-    private readonly byte[] _v0 = new byte[MaxUVSize];
+    private readonly byte[] _u0 = new byte[MaxUvSize];
+    private readonly byte[] _v0 = new byte[MaxUvSize];
     private readonly byte[] _y1 = new byte[MaxYSize];
-    private readonly byte[] _u1 = new byte[MaxUVSize];
-    private readonly byte[] _v1 = new byte[MaxUVSize];
-    private readonly GCHandle _pinY0, _pinU0, _pinV0;
-    private readonly GCHandle _pinY1, _pinU1, _pinV1;
+    private readonly byte[] _u1 = new byte[MaxUvSize];
+    private readonly byte[] _v1 = new byte[MaxUvSize];
+    private GCHandle _pinY0, _pinU0, _pinV0;
+    private GCHandle _pinY1, _pinU1, _pinV1;
 
-    private volatile int _front; // index (0 or 1) of the buffer the UI thread reads
+    private int _front; // index (0 or 1) of the buffer the UI thread reads
     private int _postPending;    // 1 when a Flush is already queued to the UI thread
     private bool _disposed;
     private bool _bitmapNeedsRebuild;
@@ -49,7 +49,7 @@ public sealed class VlcVideoBridge : IDisposable
     // called on the UI thread when a new WriteableBitmap is created (video format negotiated)
     public Action? BitmapSourceChanged { get; set; }
 
-    private static readonly string[] options =
+    private static readonly string[] Options =
         ["--no-video-title-show", "--no-osd", "--no-stats"];
 
     public VlcVideoBridge(string[] vlcArgs)
@@ -61,7 +61,7 @@ public sealed class VlcVideoBridge : IDisposable
         _pinU1 = GCHandle.Alloc(_u1, GCHandleType.Pinned);
         _pinV1 = GCHandle.Alloc(_v1, GCHandleType.Pinned);
 
-        _vlc = new LibVLC(false, [.. options, .. vlcArgs]);
+        _vlc = new LibVLC(false, [.. Options, .. vlcArgs]);
         Player = new MediaPlayer(_vlc);
 
         // SetVideoCallbacks internally sets vout=vmem; SetVideoFormatCallbacks negotiates I420
@@ -95,7 +95,7 @@ public sealed class VlcVideoBridge : IDisposable
     // VLC render thread: hand it pointers to the Y/U/V planes of the back buffer
     private unsafe IntPtr Lock(IntPtr opaque, IntPtr planes)
     {
-        var (yPin, uPin, vPin) = _front == 0 ? (_pinY1, _pinU1, _pinV1) : (_pinY0, _pinU0, _pinV0);
+        var (yPin, uPin, vPin) = Volatile.Read(ref _front) == 0 ? (_pinY1, _pinU1, _pinV1) : (_pinY0, _pinU0, _pinV0);
         IntPtr* p = (IntPtr*)planes;
         p[0] = yPin.AddrOfPinnedObject();
         p[1] = uPin.AddrOfPinnedObject();
@@ -106,7 +106,7 @@ public sealed class VlcVideoBridge : IDisposable
     // VLC render thread: swap buffers, queue one flush (drop duplicates)
     private void Display(IntPtr opaque, IntPtr picture)
     {
-        _front ^= 1; // only this thread writes _front, volatile read in Flush is safe
+        Interlocked.Exchange(ref _front, _front ^ 1); // only this thread writes _front; Exchange provides memory fence for Flush
         if (Interlocked.CompareExchange(ref _postPending, 1, 0) == 0)
             Dispatcher.UIThread.Post(Flush, DispatcherPriority.Render);
     }
@@ -130,7 +130,7 @@ public sealed class VlcVideoBridge : IDisposable
 
         if (_bitmap == null) return;
 
-        var (yPin, uPin, vPin) = _front == 0 ? (_pinY0, _pinU0, _pinV0) : (_pinY1, _pinU1, _pinV1);
+        var (yPin, uPin, vPin) = Volatile.Read(ref _front) == 0 ? (_pinY0, _pinU0, _pinV0) : (_pinY1, _pinU1, _pinV1);
         using var fb = _bitmap.Lock();
         ConvertI420ToBgra(
             (byte*)yPin.AddrOfPinnedObject(),
@@ -194,7 +194,7 @@ public sealed class VlcVideoBridge : IDisposable
         int saved = -1;
         if (OperatingSystem.IsMacOS())
         {
-            var devNull = Native.open("/dev/null", Native.O_WRONLY);
+            var devNull = Native.open("/dev/null", Native.OWronly);
             saved = Native.dup(2);
             _ = Native.dup2(devNull, 2);
             _ = Native.close(devNull);

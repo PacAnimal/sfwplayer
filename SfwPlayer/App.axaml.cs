@@ -1,11 +1,11 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using Microsoft.Extensions.DependencyInjection;
 using SfwPlayer.Platform;
 
 namespace SfwPlayer;
 
+// ReSharper disable once PartialTypeWithSinglePart
 public partial class App : Application
 {
     public static IServiceProvider Services { get; set; } = null!;

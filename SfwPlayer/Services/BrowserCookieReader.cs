@@ -36,13 +36,13 @@ internal static class BrowserCookieReader
         if (data.Length < 8) return [];
         if (data[0] != 'c' || data[1] != 'o' || data[2] != 'o' || data[3] != 'k') return [];
 
-        var pageCount = ReadBE32(data, 4);
+        var pageCount = ReadBe32(data, 4);
         var result = new List<Cookie>();
         var offset = 8 + pageCount * 4;
 
         for (var i = 0; i < pageCount; i++)
         {
-            var pageSize = ReadBE32(data, 8 + i * 4);
+            var pageSize = ReadBe32(data, 8 + i * 4);
             ParsePage(data, offset, result);
             offset += pageSize;
         }
@@ -56,10 +56,10 @@ internal static class BrowserCookieReader
         // page magic: 0x00 0x00 0x01 0x00
         if (data[start] != 0 || data[start + 1] != 0 || data[start + 2] != 1 || data[start + 3] != 0) return;
 
-        var count = ReadLE32(data, start + 4);
+        var count = ReadLe32(data, start + 4);
         for (var i = 0; i < count; i++)
         {
-            var recordOffset = start + ReadLE32(data, start + 8 + i * 4);
+            var recordOffset = start + ReadLe32(data, start + 8 + i * 4);
             TryParseCookie(data, recordOffset, result);
         }
     }
@@ -67,14 +67,14 @@ internal static class BrowserCookieReader
     private static void TryParseCookie(byte[] data, int start, List<Cookie> result)
     {
         if (start + 56 > data.Length) return;
-        var size = ReadLE32(data, start);
+        var size = ReadLe32(data, start);
         if (size < 56 || start + size > data.Length) return;
 
-        var flags = ReadLE32(data, start + 8);
-        var domainOff = ReadLE32(data, start + 16);
-        var nameOff = ReadLE32(data, start + 20);
-        var pathOff = ReadLE32(data, start + 24);
-        var valueOff = ReadLE32(data, start + 28);
+        var flags = ReadLe32(data, start + 8);
+        var domainOff = ReadLe32(data, start + 16);
+        var nameOff = ReadLe32(data, start + 20);
+        var pathOff = ReadLe32(data, start + 24);
+        var valueOff = ReadLe32(data, start + 28);
         var expiry = BitConverter.ToDouble(data.AsSpan(start + 40, 8));
 
         var domain = CStr(data, start + domainOff);
@@ -101,10 +101,10 @@ internal static class BrowserCookieReader
         catch { /* skip malformed cookies */ }
     }
 
-    private static int ReadBE32(byte[] d, int i) =>
+    private static int ReadBe32(byte[] d, int i) =>
         (d[i] << 24) | (d[i + 1] << 16) | (d[i + 2] << 8) | d[i + 3];
 
-    private static int ReadLE32(byte[] d, int i) =>
+    private static int ReadLe32(byte[] d, int i) =>
         d[i] | (d[i + 1] << 8) | (d[i + 2] << 16) | (d[i + 3] << 24);
 
     private static string CStr(byte[] d, int i)

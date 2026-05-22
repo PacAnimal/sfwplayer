@@ -272,7 +272,7 @@ public partial class MainWindow : Window
         _log.LogInformation("playlist refreshed: {count} videos, queue index now {index}", fresh.Count, _queueIndex);
     }
 
-    private void OnSelectPlaylistMenuClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void OnSelectPlaylistMenuClicked(object? sender, RoutedEventArgs e)
     {
         if (_picker != null) { _picker.Activate(); return; }
         _picker = new PlaylistPickerWindow(_services);
@@ -292,13 +292,13 @@ public partial class MainWindow : Window
         _ = PlayQueueItemAsync(req.Shuffle ? 0 : req.StartIndex);
     }
 
-    private void OnPrevClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void OnPrevClicked(object? sender, RoutedEventArgs e)
     {
         if (_queueIndex > 0)
             _ = PlayQueueItemAsync(_queueIndex - 1);
     }
 
-    private void OnNextClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void OnNextClicked(object? sender, RoutedEventArgs e)
     {
         if (_queueIndex < _queue.Count - 1)
             _ = PlayQueueItemAsync(_queueIndex + 1);
@@ -333,13 +333,13 @@ public partial class MainWindow : Window
             Dispatcher.UIThread.Post(() => _log.LogError("vlc encountered an error during playback"));
 
         _bridge.Player.EndReached += (_, _) =>
-            ThreadPool.QueueUserWorkItem(_ =>
+            Task.Run(() =>
             {
                 if (App.ExitOnDone)
                 {
                     Dispatcher.UIThread.Post(() =>
                         (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)
-                            ?.Shutdown(0));
+                            ?.Shutdown());
                     return;
                 }
                 if (_cts.IsCancellationRequested) return;
@@ -453,7 +453,7 @@ public partial class MainWindow : Window
     }
 
     private bool IsCursorOverPadlock() =>
-        _clickThrough.IsCursorOverRect(new Avalonia.Rect(4, 4, 22, 22));
+        _clickThrough.IsCursorOverRect(new Rect(4, 4, 22, 22));
 
     private void ShowHint()
     {

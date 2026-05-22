@@ -240,6 +240,9 @@ internal sealed class VideoListItem(VideoInfo info) : INotifyPropertyChanged
             var bmp = new Bitmap(ms);
             await Dispatcher.UIThread.InvokeAsync(() => Thumbnail = bmp);
         }
-        catch { }
+        catch (Exception)
+        {
+            // ignored
+        }
     }
 }

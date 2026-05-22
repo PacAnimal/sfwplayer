@@ -4,7 +4,6 @@
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using SfwPlayer.Services;
 
 namespace SfwPlayer.Platform.MacOS;
 
@@ -23,19 +22,13 @@ internal static class AppleWebAuth
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct NSRect { public double X, Y, W, H; }
+    private struct NsRect { public double X, Y, W, H; }
 
     // cookie-reading block for WKHTTPCookieStore.getAllCookies:
-    private static readonly unsafe BlockLiteral* _cookieBlock;
-    private static readonly unsafe BlockDescriptor* _cookieDesc;
     private static readonly IntPtr _cookieBlockPtr;
 
-    private static readonly unsafe BlockLiteral* _noopBlock;
-    private static readonly unsafe BlockDescriptor* _noopDesc;
     private static readonly IntPtr _noopBlockPtr;
 
-    // kept for test: SfwAuthContext registered so tests can assert ObjC class registration
-    private static readonly IntPtr _contextClass;
     // SfwWebDelegate implements WKNavigationDelegate + NSWindowDelegate
     private static readonly IntPtr _delegateClass;
     // dispatch_get_main_queue() is a C macro for &_dispatch_main_q — resolve at startup
@@ -66,39 +59,39 @@ internal static class AppleWebAuth
         if (NativeLibrary.TryLoad("/usr/lib/system/libdispatch.dylib", typeof(AppleWebAuth).Assembly, null, out var dispatchLib))
             NativeLibrary.TryGetExport(dispatchLib, "_dispatch_main_q", out _mainQueue);
 
-        _cookieDesc = (BlockDescriptor*)NativeMemory.Alloc((nuint)sizeof(BlockDescriptor));
-        _cookieDesc->Reserved = 0;
-        _cookieDesc->Size = (nuint)sizeof(BlockLiteral);
+        var cookieDesc = (BlockDescriptor*)NativeMemory.Alloc((nuint)sizeof(BlockDescriptor));
+        cookieDesc->Reserved = 0;
+        cookieDesc->Size = (nuint)sizeof(BlockLiteral);
 
-        _cookieBlock = (BlockLiteral*)NativeMemory.Alloc((nuint)sizeof(BlockLiteral));
-        _cookieBlock->Isa = blockIsa;
-        _cookieBlock->Flags = 1 << 28; // BLOCK_IS_GLOBAL
-        _cookieBlock->Reserved = 0;
-        _cookieBlock->Invoke = (IntPtr)(delegate* unmanaged[Cdecl]<BlockLiteral*, IntPtr, void>)&OnGetCookies;
-        _cookieBlock->Descriptor = (IntPtr)_cookieDesc;
-        _cookieBlockPtr = (IntPtr)_cookieBlock;
+        var cookieBlock = (BlockLiteral*)NativeMemory.Alloc((nuint)sizeof(BlockLiteral));
+        cookieBlock->Isa = blockIsa;
+        cookieBlock->Flags = 1 << 28; // BLOCK_IS_GLOBAL
+        cookieBlock->Reserved = 0;
+        cookieBlock->Invoke = (IntPtr)(delegate* unmanaged[Cdecl]<BlockLiteral*, IntPtr, void>)&OnGetCookies;
+        cookieBlock->Descriptor = (IntPtr)cookieDesc;
+        _cookieBlockPtr = (IntPtr)cookieBlock;
 
-        _noopDesc = (BlockDescriptor*)NativeMemory.Alloc((nuint)sizeof(BlockDescriptor));
-        _noopDesc->Reserved = 0;
-        _noopDesc->Size = (nuint)sizeof(BlockLiteral);
+        var noopDesc = (BlockDescriptor*)NativeMemory.Alloc((nuint)sizeof(BlockDescriptor));
+        noopDesc->Reserved = 0;
+        noopDesc->Size = (nuint)sizeof(BlockLiteral);
 
-        _noopBlock = (BlockLiteral*)NativeMemory.Alloc((nuint)sizeof(BlockLiteral));
-        _noopBlock->Isa = blockIsa;
-        _noopBlock->Flags = 1 << 28; // BLOCK_IS_GLOBAL
-        _noopBlock->Reserved = 0;
-        _noopBlock->Invoke = (IntPtr)(delegate* unmanaged[Cdecl]<BlockLiteral*, void>)&NoopBlockInvoke;
-        _noopBlock->Descriptor = (IntPtr)_noopDesc;
-        _noopBlockPtr = (IntPtr)_noopBlock;
+        var noopBlock = (BlockLiteral*)NativeMemory.Alloc((nuint)sizeof(BlockLiteral));
+        noopBlock->Isa = blockIsa;
+        noopBlock->Flags = 1 << 28; // BLOCK_IS_GLOBAL
+        noopBlock->Reserved = 0;
+        noopBlock->Invoke = (IntPtr)(delegate* unmanaged[Cdecl]<BlockLiteral*, void>)&NoopBlockInvoke;
+        noopBlock->Descriptor = (IntPtr)noopDesc;
+        _noopBlockPtr = (IntPtr)noopBlock;
 
         var nso = objc_getClass("NSObject");
 
         // SfwAuthContext: kept so existing tests can verify ObjC class registration
-        _contextClass = objc_allocateClassPair(nso, "SfwAuthContext", 0);
-        class_addMethod(_contextClass,
+        var contextClass = objc_allocateClassPair(nso, "SfwAuthContext", 0);
+        class_addMethod(contextClass,
             sel_registerName("presentationAnchorForWebAuthenticationSession:"),
             (IntPtr)(delegate* unmanaged[Cdecl]<IntPtr, IntPtr, IntPtr, IntPtr>)&GetAnchor,
             "@24@0:8@16");
-        objc_registerClassPair(_contextClass);
+        objc_registerClassPair(contextClass);
 
         // SfwWebDelegate: WKNavigationDelegate + NSWindowDelegate
         _delegateClass = objc_allocateClassPair(nso, "SfwWebDelegate", 0);
@@ -294,7 +287,7 @@ internal static class AppleWebAuth
 
     private static (IntPtr webView, IntPtr webWindow) CreateWebViewWindow()
     {
-        var rect = new NSRect { X = 150, Y = 100, W = 960, H = 720 };
+        var rect = new NsRect { X = 150, Y = 100, W = 960, H = 720 };
         var window = msg_ptr_nsrect_nuint_nuint_bool(
             msg_ptr(objc_getClass("NSWindow"), sel_registerName("alloc")),
             sel_registerName("initWithContentRect:styleMask:backing:defer:"),
@@ -421,13 +414,13 @@ internal static class AppleWebAuth
     private static extern double msg_double(IntPtr obj, IntPtr sel);
 
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
-    private static extern NSRect msg_nsrect(IntPtr obj, IntPtr sel);
+    private static extern NsRect msg_nsrect(IntPtr obj, IntPtr sel);
 
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
-    private static extern IntPtr msg_ptr_nsrect_p(IntPtr obj, IntPtr sel, NSRect frame, IntPtr config);
+    private static extern IntPtr msg_ptr_nsrect_p(IntPtr obj, IntPtr sel, NsRect frame, IntPtr config);
 
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
-    private static extern IntPtr msg_ptr_nsrect_nuint_nuint_bool(IntPtr obj, IntPtr sel, NSRect frame, nuint styleMask, nuint backing, bool defer);
+    private static extern IntPtr msg_ptr_nsrect_nuint_nuint_bool(IntPtr obj, IntPtr sel, NsRect frame, nuint styleMask, nuint backing, bool defer);
 
     [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
     private static extern void msg_void_nuint(IntPtr obj, IntPtr sel, nuint arg);

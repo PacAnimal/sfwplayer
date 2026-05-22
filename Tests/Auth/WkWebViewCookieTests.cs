@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Net.Sockets;
 using Tests.Setup;
 
 namespace Tests.Auth;
@@ -34,7 +35,7 @@ public class WkWebViewCookieTests
 
         try
         {
-            var psi = new ProcessStartInfo(sfwExe!)
+            var psi = new ProcessStartInfo(sfwExe)
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -91,8 +92,8 @@ public class WkWebViewCookieTests
 
     private static int GetFreePort()
     {
-        using var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        using var l = new TcpListener(IPAddress.Loopback, 0);
         l.Start();
-        return ((System.Net.IPEndPoint)l.LocalEndpoint).Port;
+        return ((IPEndPoint)l.LocalEndpoint).Port;
     }
 }

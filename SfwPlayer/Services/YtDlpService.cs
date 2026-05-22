@@ -23,9 +23,7 @@ public class YoutubeService(ILogger<YoutubeService> log, CookieStore? cookies = 
 
         var stream = manifest.GetMuxedStreams()
             .Where(s => s.VideoResolution.Height <= 720)
-            .GetWithHighestVideoQuality()
-            ?? manifest.GetMuxedStreams().GetWithHighestVideoQuality()
-            ?? throw new InvalidOperationException("no usable stream found for video");
+            .GetWithHighestVideoQuality();
 
         if (log.IsEnabled(LogLevel.Information))
             log.LogInformation("resolved {quality} stream ({container})", stream.VideoQuality.Label, stream.Container.Name);
@@ -40,7 +38,7 @@ public class YoutubeService(ILogger<YoutubeService> log, CookieStore? cookies = 
         if (stored is not { Count: > 0 }) return new YoutubeClient();
 
         var http = new HttpClient();
-        http.DefaultRequestHeaders.Add("User-Agent", InnerTubeService.ChromeUA);
+        http.DefaultRequestHeaders.Add("User-Agent", InnerTubeService.ChromeUa);
         http.DefaultRequestHeaders.Add("Cookie",
             string.Join("; ", stored.Select(c => $"{c.Name}={c.Value}")));
         return new YoutubeClient(http);

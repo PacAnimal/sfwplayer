@@ -1,6 +1,4 @@
 #pragma warning disable CA1873 // logging calls with cheap args don't need IsEnabled guards
-using System.Net;
-using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -12,7 +10,7 @@ namespace SfwPlayer.Services;
 
 public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeService> log)
 {
-    public const string ChromeUA =
+    public const string ChromeUa =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
         "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
@@ -86,7 +84,7 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
                 break;
             }
             var contJson = await resp.Content.ReadAsStringAsync(cancel);
-            string? nextToken = null;
+            string? nextToken;
             try
             {
                 using var contDoc = JsonDocument.Parse(contJson, new JsonDocumentOptions { AllowTrailingCommas = true });
@@ -109,7 +107,7 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
     {
         var handler = new HttpClientHandler { UseCookies = false };
         var http = new HttpClient(handler);
-        http.DefaultRequestHeaders.UserAgent.ParseAdd(ChromeUA);
+        http.DefaultRequestHeaders.UserAgent.ParseAdd(ChromeUa);
         http.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.9");
 
         var youtubeCookies = cookies.GetCookies()
@@ -160,10 +158,10 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
 
     internal static string? ExtractYtInitialData(string html)
     {
-        const string Marker = "var ytInitialData = ";
-        var idx = html.IndexOf(Marker, StringComparison.Ordinal);
+        const string marker = "var ytInitialData = ";
+        var idx = html.IndexOf(marker, StringComparison.Ordinal);
         if (idx < 0) return null;
-        idx += Marker.Length;
+        idx += marker.Length;
         var end = html.IndexOf(";</script>", idx, StringComparison.Ordinal);
         return end < 0 ? null : html[idx..end];
     }
@@ -235,7 +233,7 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
         return results;
     }
 
-    private static void WalkForPlaylists(JsonElement el, List<PlaylistInfo> out_, HashSet<string> seen, int depth)
+    private static void WalkForPlaylists(JsonElement el, List<PlaylistInfo> results, HashSet<string> seen, int depth)
     {
         if (depth > 20) return;
         if (el.ValueKind == JsonValueKind.Object)
@@ -263,7 +261,7 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
                             if (m.Success) _ = long.TryParse(m.Value, out count);
                         }
                     }
-                    out_.Add(new PlaylistInfo(id, title, count, null));
+                    results.Add(new PlaylistInfo(id, title, count, null));
                 }
             }
             // legacy gridPlaylistRenderer format
@@ -280,16 +278,16 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
                         var m = MyRegex().Match(countText);
                         if (m.Success) _ = long.TryParse(m.Value, out count);
                     }
-                    out_.Add(new PlaylistInfo(id, title, count, null));
+                    results.Add(new PlaylistInfo(id, title, count, null));
                 }
             }
             foreach (var prop in el.EnumerateObject())
-                WalkForPlaylists(prop.Value, out_, seen, depth + 1);
+                WalkForPlaylists(prop.Value, results, seen, depth + 1);
         }
         else if (el.ValueKind == JsonValueKind.Array)
         {
             foreach (var item in el.EnumerateArray())
-                WalkForPlaylists(item, out_, seen, depth + 1);
+                WalkForPlaylists(item, results, seen, depth + 1);
         }
     }
 
@@ -306,7 +304,7 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
         return results;
     }
 
-    private static void WalkForVideos(JsonElement el, List<VideoInfo> out_, HashSet<string> seen, int depth)
+    private static void WalkForVideos(JsonElement el, List<VideoInfo> results, HashSet<string> seen, int depth)
     {
         if (depth > 20) return;
         if (el.ValueKind == JsonValueKind.Object)
@@ -319,16 +317,16 @@ public partial class InnerTubeService(CookieStore cookies, ILogger<InnerTubeServ
                 {
                     string? duration = el.TryGetProperty("lengthText", out var lenEl) ? GetText(lenEl) : null;
                     string? setVideoId = el.TryGetProperty("setVideoId", out var setIdEl) ? setIdEl.GetString() : null;
-                    out_.Add(new VideoInfo(id, title, $"https://i.ytimg.com/vi/{id}/mqdefault.jpg", out_.Count, duration, setVideoId));
+                    results.Add(new VideoInfo(id, title, $"https://i.ytimg.com/vi/{id}/mqdefault.jpg", results.Count, duration, setVideoId));
                 }
             }
             foreach (var prop in el.EnumerateObject())
-                WalkForVideos(prop.Value, out_, seen, depth + 1);
+                WalkForVideos(prop.Value, results, seen, depth + 1);
         }
         else if (el.ValueKind == JsonValueKind.Array)
         {
             foreach (var item in el.EnumerateArray())
-                WalkForVideos(item, out_, seen, depth + 1);
+                WalkForVideos(item, results, seen, depth + 1);
         }
     }
 
