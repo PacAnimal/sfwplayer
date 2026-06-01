@@ -233,8 +233,17 @@ public partial class MainWindow : Window
 
     private void UpdateQueueMenuItems()
     {
-        var hasPrev = _queue.Count > 0 && _queueIndex > 0;
-        var hasNext = _queue.Count > 0 && _queueIndex < _queue.Count - 1;
+        bool hasPrev, hasNext;
+        if (_removedVideo != null)
+        {
+            hasPrev = _removedIndex > 0;
+            hasNext = _removedIndex < _queue.Count;
+        }
+        else
+        {
+            hasPrev = _queue.Count > 0 && _queueIndex > 0;
+            hasNext = _queue.Count > 0 && _queueIndex < _queue.Count - 1;
+        }
         PrevMenuItem.IsEnabled = hasPrev;
         NextMenuItem.IsEnabled = hasNext;
         PrevButton.IsEnabled = hasPrev;
@@ -312,13 +321,21 @@ public partial class MainWindow : Window
 
     private void OnPrevClicked(object? sender, RoutedEventArgs e)
     {
-        if (_queueIndex > 0)
+        if (_removedVideo != null)
+        {
+            if (_removedIndex > 0) _ = PlayQueueItemAsync(_removedIndex - 1);
+        }
+        else if (_queueIndex > 0)
             _ = PlayQueueItemAsync(_queueIndex - 1);
     }
 
     private void OnNextClicked(object? sender, RoutedEventArgs e)
     {
-        if (_queueIndex < _queue.Count - 1)
+        if (_removedVideo != null)
+        {
+            if (_removedIndex < _queue.Count) _ = PlayQueueItemAsync(_removedIndex);
+        }
+        else if (_queueIndex < _queue.Count - 1)
             _ = PlayQueueItemAsync(_queueIndex + 1);
     }
 
