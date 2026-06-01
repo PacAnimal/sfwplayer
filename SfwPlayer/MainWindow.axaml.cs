@@ -31,6 +31,8 @@ public partial class MainWindow : Window
     private int _queueIndex = -1;
     private string? _currentPlaylistId;
     private bool _queueRefreshed;
+    private VideoInfo? _removedVideo;
+    private int _removedIndex = -1;
     private CancellationTokenSource _playCts = new();
 
     private VlcVideoBridge? _bridge;
@@ -204,6 +206,8 @@ public partial class MainWindow : Window
 
         _queueIndex = index;
         _queueRefreshed = false;
+        _removedVideo = null;
+        _removedIndex = -1;
         var video = _queue[index];
 
         TrackTitle.Text = video.Title;
@@ -235,6 +239,18 @@ public partial class MainWindow : Window
         NextMenuItem.IsEnabled = hasNext;
         PrevButton.IsEnabled = hasPrev;
         NextButton.IsEnabled = hasNext;
+        UpdateTrashButton();
+    }
+
+    private void UpdateTrashButton()
+    {
+        var inPlaylist = _currentPlaylistId != null;
+        TrashButton.IsVisible = inPlaylist;
+        if (!inPlaylist) return;
+        var canUndo = _removedVideo != null;
+        TrashEmptyIcon.IsVisible = !canUndo;
+        TrashFullIcon.IsVisible = canUndo;
+        TrashButton.IsEnabled = canUndo || (_queueIndex >= 0 && _queueIndex < _queue.Count);
     }
 
     private async Task RefreshQueueAsync(string playlistId, CancellationToken cancel)
@@ -289,6 +305,8 @@ public partial class MainWindow : Window
         _queue = videos;
         _queueIndex = -1;
         _currentPlaylistId = req.PlaylistId;
+        _removedVideo = null;
+        _removedIndex = -1;
         _ = PlayQueueItemAsync(req.Shuffle ? 0 : req.StartIndex);
     }
 
@@ -302,6 +320,25 @@ public partial class MainWindow : Window
     {
         if (_queueIndex < _queue.Count - 1)
             _ = PlayQueueItemAsync(_queueIndex + 1);
+    }
+
+    private void OnTrashClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_removedVideo != null)
+        {
+            _queue.Insert(_removedIndex, _removedVideo);
+            _removedVideo = null;
+            _removedIndex = -1;
+        }
+        else
+        {
+            if (_queueIndex < 0 || _queueIndex >= _queue.Count) return;
+            _removedVideo = _queue[_queueIndex];
+            _removedIndex = _queueIndex;
+            _queue.RemoveAt(_queueIndex);
+        }
+        UpdateTrashButton();
+        UpdateQueueMenuItems();
     }
 
     private void InitializeBridge()

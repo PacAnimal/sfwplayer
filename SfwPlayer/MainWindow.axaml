@@ -215,6 +215,39 @@
                     </Grid>
                 </Viewbox>
             </Button>
+
+            <!-- trash: lower right, above seekbar; remove current track from playlist (undo when full) -->
+            <Button x:Name="TrashButton"
+                    Classes="videobutton"
+                    ZIndex="10"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,8,48"
+                    IsVisible="False"
+                    Click="OnTrashClicked">
+                <Viewbox Width="20" Height="20">
+                    <Grid Width="24" Height="24">
+                        <!-- empty: straight sides -->
+                        <Grid x:Name="TrashEmptyIcon">
+                            <Path Stroke="#CC000000" StrokeThickness="4"
+                                  StrokeLineCap="Round" StrokeJoin="Round"
+                                  Data="M3 6h18M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6" />
+                            <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.5"
+                                  StrokeLineCap="Round" StrokeJoin="Round"
+                                  Data="M3 6h18M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6" />
+                        </Grid>
+                        <!-- full: bezier-curved sides bow outward (bulging) -->
+                        <Grid x:Name="TrashFullIcon" IsVisible="False">
+                            <Path Stroke="#CC000000" StrokeThickness="4"
+                                  StrokeLineCap="Round" StrokeJoin="Round"
+                                  Data="M3 6h18M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2M19 6C22 11 22 16 18 20a2 2 0 01-2 2H8a2 2 0 01-2-2C2 16 2 11 5 6M10 11v6M14 11v6" />
+                            <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.5"
+                                  StrokeLineCap="Round" StrokeJoin="Round"
+                                  Data="M3 6h18M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2M19 6C22 11 22 16 18 20a2 2 0 01-2 2H8a2 2 0 01-2-2C2 16 2 11 5 6M10 11v6M14 11v6" />
+                        </Grid>
+                    </Grid>
+                </Viewbox>
+            </Button>
         </Grid>
 
         <!-- resize handles — ZIndex=20 wins over cornerbutton (10) and controls, hidden until hover -->
