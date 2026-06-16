@@ -47,6 +47,9 @@ public sealed class VlcVideoBridge : IDisposable
     // called on the UI thread after each frame is converted — set to VideoImage.InvalidateVisual
     public Action? FrameReady { get; set; }
 
+    // when set, adds :start-time=<seconds> to the next Play() call and resets to 0
+    public long StartTimeMs { get; set; }
+
     // called on the UI thread when a new WriteableBitmap is created (video format negotiated)
     public Action? BitmapSourceChanged { get; set; }
 
@@ -178,6 +181,11 @@ public sealed class VlcVideoBridge : IDisposable
     {
         _media?.Dispose();
         _media = new Media(_vlc, new Uri(url));
+        if (StartTimeMs > 0)
+        {
+            _media.AddOption($":start-time={StartTimeMs / 1000.0:F3}");
+            StartTimeMs = 0;
+        }
         Player.Play(_media);
     }
 

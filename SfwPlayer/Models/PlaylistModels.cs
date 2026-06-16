@@ -5,3 +5,5 @@ public record PlaylistInfo(string Id, string Title, long VideoCount, string? Thu
 public record VideoInfo(string Id, string Title, string? ThumbnailUrl, long Position, string? Duration = null, string? SetVideoId = null);
 
 public record PlaybackRequest(List<VideoInfo> Videos, bool Shuffle, int StartIndex = 0, string? PlaylistId = null);
+
+public record PlaybackState(string? PlaylistId, List<VideoInfo> Queue, int QueueIndex, long PositionMs);

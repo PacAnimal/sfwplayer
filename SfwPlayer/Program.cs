@@ -65,6 +65,7 @@ class Program
             c.TimestampUtc = false;
         });
         services.AddSingleton<CookieStore>();
+        services.AddSingleton<PlaybackStateStore>();
         services.AddSingleton<InnerTubeService>();
         services.AddSingleton<YoutubeService>();
         var provider = services.BuildServiceProvider();

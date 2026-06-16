@@ -25,6 +25,7 @@ public partial class MainWindow : Window
     private readonly YoutubeService _youtube;
     private readonly InnerTubeService _innerTube;
     private readonly ClickThrough _clickThrough;
+    private readonly PlaybackStateStore _stateStore;
     private readonly CancellationTokenSource _cts = new();
 
     private List<VideoInfo> _queue = [];
@@ -43,6 +44,9 @@ public partial class MainWindow : Window
     private bool _minified;
     private double _savedHeight;
     private DateTime _lastTopBarPress = DateTime.MinValue;
+    private long _pendingRestoreMs;
+    private bool _pendingRestorePause;
+    private bool _pendingRestoreReveal;
     private bool _isSeeking;
     private bool _seekTrackDragging;
     private double _targetOpacity = 1.0;
@@ -51,6 +55,7 @@ public partial class MainWindow : Window
 
     private readonly DispatcherTimer _pollTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private readonly DispatcherTimer _resizeTimer = new() { Interval = TimeSpan.FromMilliseconds(8) };
+    private readonly DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromSeconds(15) };
     private PixelPoint _resizeStartCursor;
     private PixelPoint _resizeStartPos;
     private Size _resizeStartSize;
@@ -86,18 +91,28 @@ public partial class MainWindow : Window
         _youtube = services.GetRequiredService<YoutubeService>();
         _innerTube = services.GetRequiredService<InnerTubeService>();
         _clickThrough = new ClickThrough(this, services.GetRequiredService<ILogger<ClickThrough>>());
+        _stateStore = services.GetRequiredService<PlaybackStateStore>();
 
         _pollTimer.Tick += OnPollTick;
         _resizeTimer.Tick += OnResizeTick;
+        _saveTimer.Tick += (_, _) =>
+        {
+            if (_queue.Count > 0 && _queueIndex >= 0)
+            {
+                var pos = _pendingRestoreMs > 0 ? _pendingRestoreMs : _currentMs;
+                _stateStore.Save(new PlaybackState(_currentPlaylistId, _queue, _queueIndex, pos));
+            }
+        };
 
         SeekBar.AddHandler(PointerPressedEvent, (_, e) =>
         {
             _isSeeking = true;
+            SeekBar.Value = SliderValueAt(SeekBar, e.GetCurrentPoint(SeekBar).Position.X);
             if (!IsThumbPress(e))
             {
                 _seekTrackDragging = true;
-                SeekBar.Value = SliderValueAt(SeekBar, e.GetCurrentPoint(SeekBar).Position.X);
                 e.Pointer.Capture(SeekBar);
+                e.Handled = true; // prevent Avalonia's LargeChange step from overriding exact click position
             }
         }, RoutingStrategies.Tunnel);
         SeekBar.AddHandler(PointerMovedEvent, (_, e) =>
@@ -110,7 +125,11 @@ public partial class MainWindow : Window
             if (!_isSeeking) return;
             _isSeeking = false;
             _seekTrackDragging = false;
-            if (_bridge is { } b) b.Player.Position = (float)SeekBar.Value;
+            if (_bridge is { } b)
+            {
+                b.Player.Position = (float)SeekBar.Value;
+                if (_totalMs > 0) _currentMs = (long)(SeekBar.Value * _totalMs);
+            }
         }, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
         SeekBar.ValueChanged += (_, e) =>
         {
@@ -125,6 +144,7 @@ public partial class MainWindow : Window
             volTrackDragging = true;
             VolumeSlider.Value = SliderValueAt(VolumeSlider, e.GetCurrentPoint(VolumeSlider).Position.X);
             e.Pointer.Capture(VolumeSlider);
+            e.Handled = true;
         }, RoutingStrategies.Tunnel);
         VolumeSlider.AddHandler(PointerMovedEvent, (_, e) =>
         {
@@ -197,6 +217,7 @@ public partial class MainWindow : Window
         PositionBottomRight();
         _clickThrough.Initialize();
         _pollTimer.Start();
+        _saveTimer.Start();
         InitializeBridge();
         SaveTestCredentialsMenuItem.IsVisible = System.Diagnostics.Debugger.IsAttached;
 
@@ -216,11 +237,37 @@ public partial class MainWindow : Window
                 ShowHint();
             }
         }
+        else
+        {
+            await TryRestoreStateAsync();
+        }
+    }
+
+    private async Task TryRestoreStateAsync()
+    {
+        var state = _stateStore.TryLoad();
+        if (state == null || state.Queue.Count == 0) return;
+
+        _queue = state.Queue;
+        _currentPlaylistId = state.PlaylistId;
+        _removedVideo = null;
+        _removedIndex = -1;
+
+        // current video if still valid, else nearest next, else first
+        var index = Math.Clamp(state.QueueIndex, 0, _queue.Count - 1);
+        _queueIndex = -1;
+        _pendingRestoreMs = state.PositionMs;
+        _pendingRestorePause = true;
+        if (state.PositionMs > 0) VideoImage.IsVisible = false;
+        await PlayQueueItemAsync(index);
     }
 
     private async Task PlayQueueItemAsync(int index)
     {
         if (index < 0 || index >= _queue.Count) return;
+
+        // navigating away from the restored video — don't seek or pause on play
+        if (_queueIndex >= 0 && index != _queueIndex) { _pendingRestoreMs = 0; _pendingRestorePause = false; _pendingRestoreReveal = false; VideoImage.IsVisible = true; }
 
         _playCts.Cancel();
         _playCts = new CancellationTokenSource();
@@ -338,6 +385,10 @@ public partial class MainWindow : Window
 
     private void OnPickerPlayRequested(PlaybackRequest req)
     {
+        _pendingRestoreMs = 0;
+        _pendingRestorePause = false;
+        _pendingRestoreReveal = false;
+        VideoImage.IsVisible = true;
         var videos = req.Shuffle
             ? [.. req.Videos.OrderBy(_ => Random.Shared.Next())]
             : req.Videos;
@@ -392,7 +443,20 @@ public partial class MainWindow : Window
     {
         _bridge = new VlcVideoBridge([.. VlcSetup.GetArgs(), .. App.ExtraVlcArgs]);
         _bridge.BitmapSourceChanged = () => VideoImage.Source = _bridge.Bitmap;
-        _bridge.FrameReady = VideoImage.InvalidateVisual;
+        _bridge.FrameReady = () =>
+        {
+            if (_pendingRestoreReveal)
+            {
+                _pendingRestoreReveal = false;
+                VideoImage.IsVisible = true;
+            }
+            VideoImage.InvalidateVisual();
+            if (_pendingRestorePause)
+            {
+                _pendingRestorePause = false;
+                _bridge.Player.Pause();
+            }
+        };
         _bridge.Player.Volume = (int)VolumeSlider.Value;
 
         _bridge.Player.Playing += (_, _) => Dispatcher.UIThread.Post(() =>
@@ -407,6 +471,7 @@ public partial class MainWindow : Window
         {
             PlayIcon.IsVisible = true; PauseIcon.IsVisible = false;
             MinPlayIcon.IsVisible = true; MinPauseIcon.IsVisible = false;
+            Dispatcher.UIThread.Post(ApplyRestoreSeek, DispatcherPriority.Background);
         });
         _bridge.Player.Stopped += (_, _) => Dispatcher.UIThread.Post(() =>
         {
@@ -415,9 +480,16 @@ public partial class MainWindow : Window
         });
 
         _bridge.Player.LengthChanged += (_, ev) =>
-            Dispatcher.UIThread.Post(() => { _totalMs = ev.Length; UpdateTimeLabel(); });
+            Dispatcher.UIThread.Post(() =>
+            {
+                _totalMs = ev.Length;
+                UpdateTimeLabel();
+                if (_currentMs > 0 && ev.Length > 0)
+                    SeekBar.Value = _currentMs / (double)ev.Length;
+                Dispatcher.UIThread.Post(ApplyRestoreSeek, DispatcherPriority.Background);
+            });
         _bridge.Player.TimeChanged += (_, ev) =>
-            Dispatcher.UIThread.Post(() => { _currentMs = ev.Time; UpdateTimeLabel(); });
+            Dispatcher.UIThread.Post(() => { _currentMs = ev.Time; if (!_isSeeking) UpdateTimeLabel(); });
         _bridge.Player.PositionChanged += (_, ev) =>
             Dispatcher.UIThread.Post(() => { if (!_isSeeking) SeekBar.Value = ev.Position; });
 
@@ -562,6 +634,22 @@ public partial class MainWindow : Window
     {
         PlayPauseButton.IsEnabled = enabled;
         MinPlayPauseButton.IsEnabled = enabled;
+    }
+
+    private async void ApplyRestoreSeek()
+    {
+        if (_pendingRestoreMs <= 0 || _totalMs <= 0 || _bridge == null || _bridge.Player.IsPlaying) return;
+        var ms = _pendingRestoreMs;
+        _pendingRestoreMs = 0;
+        var pos = (float)(ms / (double)_totalMs);
+        _currentMs = ms;
+        SeekBar.Value = pos;
+        UpdateTimeLabel();
+        await Task.Delay(500);
+        if (_bridge == null) { VideoImage.IsVisible = true; return; }
+        if (_bridge.Player.IsPlaying) { VideoImage.IsVisible = true; return; } // user pressed play during wait
+        _pendingRestoreReveal = true;
+        _bridge.Player.Position = pos;
     }
 
     private void UpdateTimeLabel() =>
@@ -743,7 +831,8 @@ public partial class MainWindow : Window
     {
         if (_bridge is not { } b) return;
         if (b.Player.IsPlaying) b.Player.Pause();
-        else b.Player.Play();
+        else if (b.Player.Media != null) b.Player.Play();
+        else if (_queueIndex >= 0 && _queueIndex < _queue.Count) _ = PlayQueueItemAsync(_queueIndex);
     }
 
     private void OnMuteClicked(object? sender, RoutedEventArgs e)
@@ -794,6 +883,12 @@ public partial class MainWindow : Window
         _closingStarted = true;
         e.Cancel = true;
 
+        if (_queue.Count > 0 && _queueIndex >= 0)
+        {
+            var savePos = _pendingRestoreMs > 0 ? _pendingRestoreMs : _currentMs;
+            _stateStore.Save(new PlaybackState(_currentPlaylistId, _queue, _queueIndex, savePos));
+        }
+
         _picker?.Close();
         _picker = null;
 
@@ -801,6 +896,7 @@ public partial class MainWindow : Window
         _playCts.Cancel();
         _pollTimer.Stop();
         _resizeTimer.Stop();
+        _saveTimer.Stop();
 
         if (_bridge is { } b)
             await b.StopAsync();
