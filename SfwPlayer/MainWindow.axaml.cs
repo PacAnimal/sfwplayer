@@ -166,6 +166,24 @@ public partial class MainWindow : Window
             Opacity = e.NewValue;
         };
 
+        bool brightTrackDragging = false;
+        BrightnessSlider.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (IsThumbPress(e)) return;
+            brightTrackDragging = true;
+            BrightnessSlider.Value = SliderValueAt(BrightnessSlider, e.GetCurrentPoint(BrightnessSlider).Position.X);
+            e.Pointer.Capture(BrightnessSlider);
+        }, RoutingStrategies.Tunnel);
+        BrightnessSlider.AddHandler(PointerMovedEvent, (_, e) =>
+        {
+            if (brightTrackDragging)
+                BrightnessSlider.Value = SliderValueAt(BrightnessSlider, e.GetCurrentPoint(BrightnessSlider).Position.X);
+        }, RoutingStrategies.Tunnel | RoutingStrategies.Direct);
+        BrightnessSlider.AddHandler(PointerReleasedEvent, (_, _) => brightTrackDragging = false,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+        BrightnessSlider.ValueChanged += (_, e) =>
+            BrightnessOverlay.Opacity = 1.0 - e.NewValue / 100.0;
+
         KeyDown += OnKeyDown;
         Opened += OnOpened;
         Closing += OnClosing;

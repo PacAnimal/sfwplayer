@@ -25,6 +25,9 @@
         <!-- video surface — inside Skia, scales with window, no hit-test -->
         <Image x:Name="VideoImage" Stretch="Uniform" IsHitTestVisible="False" />
 
+        <!-- brightness overlay: black rect whose opacity = 1 - brightness% / 100 -->
+        <Rectangle x:Name="BrightnessOverlay" Fill="Black" Opacity="0" IsHitTestVisible="False" />
+
         <!-- full-window drag surface, behind everything -->
         <Border Background="Transparent"
                 PointerPressed="OnVideoDragPressed"
@@ -114,13 +117,24 @@
                             Minimum="0" Maximum="1"
                             SmallChange="0.01" LargeChange="0.05"
                             Theme="{StaticResource ThinSlider}" />
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,10,Auto,Auto">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,10,Auto,Auto,10,Auto,Auto">
                         <TextBlock x:Name="TimeLabel"
                                    Grid.Column="0" Classes="label"
                                    VerticalAlignment="Bottom"
                                    Text="0:00 / 0:00" Margin="0,0,0,2" />
-                        <!-- opacity icon: half-filled circle -->
+                        <!-- brightness icon: sun -->
                         <Viewbox Grid.Column="2" Width="12" Height="12"
+                                 VerticalAlignment="Center" Margin="0,0,2,0">
+                            <Path Stroke="White" StrokeThickness="1.5" StrokeLineCap="Round"
+                                  Data="M12 3v1m0 16v1M4.22 4.22l.7.7m12.16 12.16.7.7M3 12h1m16 0h1M4.92 19.08l.7-.7M18.36 5.64l.7-.7M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
+                        </Viewbox>
+                        <Slider x:Name="BrightnessSlider"
+                                Grid.Column="3" Width="58"
+                                Minimum="0" Maximum="100" Value="100"
+                                SmallChange="5"
+                                Theme="{StaticResource ThinSlider}" />
+                        <!-- opacity icon: half-filled circle -->
+                        <Viewbox Grid.Column="5" Width="12" Height="12"
                                  VerticalAlignment="Center" Margin="0,0,2,0">
                             <Grid Width="24" Height="24">
                                 <Ellipse Width="18" Height="18"
@@ -131,12 +145,12 @@
                             </Grid>
                         </Viewbox>
                         <Slider x:Name="OpacitySlider"
-                                Grid.Column="3" Width="58"
+                                Grid.Column="6" Width="58"
                                 Minimum="0.1" Maximum="1.0" Value="1.0"
                                 SmallChange="0.05"
                                 Theme="{StaticResource ThinSlider}" />
                         <Button x:Name="MuteButton"
-                                Grid.Column="5" Classes="ctrl"
+                                Grid.Column="8" Classes="ctrl"
                                 Click="OnMuteClicked">
                             <Viewbox Width="13" Height="13">
                                 <Grid Width="24" Height="24">
@@ -153,7 +167,7 @@
                             </Viewbox>
                         </Button>
                         <Slider x:Name="VolumeSlider"
-                                Grid.Column="6" Width="58"
+                                Grid.Column="9" Width="58"
                                 Minimum="0" Maximum="150" Value="80"
                                 Theme="{StaticResource ThinSlider}" />
                     </Grid>
