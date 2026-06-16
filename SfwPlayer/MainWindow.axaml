@@ -18,7 +18,7 @@
                 <MenuItem x:Name="PrevMenuItem" Header="Previous" Click="OnPrevClicked" IsEnabled="False" />
                 <MenuItem x:Name="NextMenuItem" Header="Next" Click="OnNextClicked" IsEnabled="False" />
                 <Separator />
-                <MenuItem x:Name="SignOutMenuItem" Header="Sign out from YouTube" Click="OnSignOutMenuClicked" />
+                <MenuItem x:Name="SignOutMenuItem" Header="Sign out of YouTube" Click="OnSignOutMenuClicked" />
                 <MenuItem x:Name="SaveTestCredentialsMenuItem" Header="Save Test Cookies" Click="OnSaveTestCredentialsClicked" IsVisible="False" />
             </ContextMenu>
         </Grid.ContextMenu>
@@ -77,7 +77,7 @@
         <Grid x:Name="ControlsGrid" Opacity="0" IsHitTestVisible="False">
 
             <!-- resize border highlight -->
-            <Border ZIndex="5" BorderBrush="#50FFFFFF" BorderThickness="3" Background="Transparent" IsHitTestVisible="False" />
+            <Border x:Name="ResizeBorder" ZIndex="5" BorderBrush="#50FFFFFF" BorderThickness="3" Background="Transparent" IsHitTestVisible="False" />
 
             <!-- top bar: full-width drag area with optional track title -->
             <Border VerticalAlignment="Top" Height="26" Background="#CC000000"
@@ -113,17 +113,63 @@
             <!-- bottom bar: seek + controls -->
             <Border VerticalAlignment="Bottom" Background="#CC000000" Padding="7,4,7,5">
                 <StackPanel Spacing="2">
-                    <Slider x:Name="SeekBar"
-                            Minimum="0" Maximum="1"
-                            SmallChange="0.01" LargeChange="0.05"
-                            Theme="{StaticResource ThinSlider}" />
+                    <!-- transport row: seekbar always here; nav+trash visible only when minified -->
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <StackPanel x:Name="MinTransportLeft" Grid.Column="0" Orientation="Horizontal" IsVisible="False">
+                            <Button x:Name="MinPrevButton" Classes="ctrl" IsEnabled="False" Click="OnPrevClicked">
+                                <Viewbox Width="14" Height="14">
+                                    <Grid Width="24" Height="24">
+                                        <Path Stroke="White" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
+                                              Data="M15.75 19.5L8.25 12l7.5-7.5" />
+                                    </Grid>
+                                </Viewbox>
+                            </Button>
+                            <Button x:Name="MinPlayPauseButton" Classes="ctrl" IsEnabled="False" Click="OnPlayPauseClicked">
+                                <Viewbox Width="14" Height="14">
+                                    <Grid Width="24" Height="24">
+                                        <Path x:Name="MinPlayIcon" Fill="White"
+                                              Data="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347c-.75.412-1.667-.13-1.667-.986V5.653z" />
+                                        <Path x:Name="MinPauseIcon" Fill="White" IsVisible="False"
+                                              Data="M6 4.5 H10.5 V19.5 H6 Z M13.5 4.5 H18 V19.5 H13.5 Z" />
+                                    </Grid>
+                                </Viewbox>
+                            </Button>
+                            <Button x:Name="MinNextButton" Classes="ctrl" IsEnabled="False" Click="OnNextClicked">
+                                <Viewbox Width="14" Height="14">
+                                    <Grid Width="24" Height="24">
+                                        <Path Stroke="White" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
+                                              Data="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                                    </Grid>
+                                </Viewbox>
+                            </Button>
+                        </StackPanel>
+                        <Slider x:Name="SeekBar"
+                                Grid.Column="1"
+                                Minimum="0" Maximum="1"
+                                SmallChange="0.01" LargeChange="0.05"
+                                Theme="{StaticResource ThinSlider}" />
+                        <Button x:Name="MinTrashButton" Grid.Column="2" Classes="ctrl" IsVisible="False" Click="OnTrashClicked">
+                            <Viewbox Width="14" Height="14">
+                                <Grid Width="24" Height="24">
+                                    <Grid x:Name="MinTrashEmptyIcon">
+                                        <Path Stroke="White" StrokeThickness="1.5" StrokeLineCap="Round" StrokeJoin="Round"
+                                              Data="M3 6h18M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6" />
+                                    </Grid>
+                                    <Grid x:Name="MinTrashFullIcon" IsVisible="False">
+                                        <Path Stroke="White" StrokeThickness="1.5" StrokeLineCap="Round" StrokeJoin="Round"
+                                              Data="M3 6h18M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2M19 6C22 11 22 16 18 20a2 2 0 01-2 2H8a2 2 0 01-2-2C2 16 2 11 5 6M10 11v6M14 11v6" />
+                                    </Grid>
+                                </Grid>
+                            </Viewbox>
+                        </Button>
+                    </Grid>
                     <Grid ColumnDefinitions="Auto,*,Auto,Auto,10,Auto,Auto,10,Auto,Auto">
                         <TextBlock x:Name="TimeLabel"
                                    Grid.Column="0" Classes="label"
                                    VerticalAlignment="Bottom"
                                    Text="0:00 / 0:00" Margin="0,0,0,2" />
                         <!-- brightness icon: sun -->
-                        <Viewbox Grid.Column="2" Width="12" Height="12"
+                        <Viewbox x:Name="BrightnessIcon" Grid.Column="2" Width="12" Height="12"
                                  VerticalAlignment="Center" Margin="0,0,2,0">
                             <Path Stroke="White" StrokeThickness="1.5" StrokeLineCap="Round"
                                   Data="M12 3v1m0 16v1M4.22 4.22l.7.7m12.16 12.16.7.7M3 12h1m16 0h1M4.92 19.08l.7-.7M18.36 5.64l.7-.7M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
@@ -194,6 +240,7 @@
 
             <!-- play/pause: centered in video -->
             <Button x:Name="PlayPauseButton"
+                    IsEnabled="False"
                     Classes="videobutton"
                     ZIndex="10"
                     HorizontalAlignment="Center"

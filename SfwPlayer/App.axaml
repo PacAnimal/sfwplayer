@@ -53,6 +53,12 @@
         <Style Selector="Button.ctrl:pressed /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="#60FFFFFF" />
         </Style>
+        <Style Selector="Button.ctrl:disabled">
+            <Setter Property="Opacity" Value="0.2" />
+        </Style>
+        <Style Selector="Button.ctrl:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
         <Style Selector="Button.cornerbutton">
             <Setter Property="Background" Value="#B0000000" />
             <Setter Property="BorderBrush" Value="Transparent" />

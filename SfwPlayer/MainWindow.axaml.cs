@@ -40,6 +40,9 @@ public partial class MainWindow : Window
     private bool _isMuted;
     private bool _isLocked;
     private bool _isHovering;
+    private bool _minified;
+    private double _savedHeight;
+    private DateTime _lastTopBarPress = DateTime.MinValue;
     private bool _isSeeking;
     private bool _seekTrackDragging;
     private double _targetOpacity = 1.0;
@@ -200,6 +203,7 @@ public partial class MainWindow : Window
         if (App.OverrideUrl != null)
         {
             LoadingLabel.Text = "Loading...";
+            SetPlayEnabled(true);
             try
             {
                 var url = await _youtube.GetStreamUrl(App.OverrideUrl, _cts.Token);
@@ -232,6 +236,7 @@ public partial class MainWindow : Window
         TrackTitle.IsVisible = true;
         LoadingLabel.Text = "Loading...";
         LoadingLabel.IsVisible = true;
+        SetPlayEnabled(true);
         UpdateQueueMenuItems();
 
         try
@@ -266,18 +271,25 @@ public partial class MainWindow : Window
         NextMenuItem.IsEnabled = hasNext;
         PrevButton.IsEnabled = hasPrev;
         NextButton.IsEnabled = hasNext;
+        MinPrevButton.IsEnabled = hasPrev;
+        MinNextButton.IsEnabled = hasNext;
         UpdateTrashButton();
     }
 
     private void UpdateTrashButton()
     {
         var inPlaylist = _currentPlaylistId != null;
-        TrashButton.IsVisible = inPlaylist;
+        TrashButton.IsVisible = inPlaylist && !_minified;
+        MinTrashButton.IsVisible = inPlaylist && _minified;
         if (!inPlaylist) return;
         var canUndo = _removedVideo != null;
         TrashEmptyIcon.IsVisible = !canUndo;
         TrashFullIcon.IsVisible = canUndo;
-        TrashButton.IsEnabled = canUndo || (_queueIndex >= 0 && _queueIndex < _queue.Count);
+        MinTrashEmptyIcon.IsVisible = !canUndo;
+        MinTrashFullIcon.IsVisible = canUndo;
+        var canAct = canUndo || (_queueIndex >= 0 && _queueIndex < _queue.Count);
+        TrashButton.IsEnabled = canAct;
+        MinTrashButton.IsEnabled = canAct;
     }
 
     private async Task RefreshQueueAsync(string playlistId, CancellationToken cancel)
@@ -387,12 +399,20 @@ public partial class MainWindow : Window
         {
             PlayIcon.IsVisible = false;
             PauseIcon.IsVisible = true;
+            MinPlayIcon.IsVisible = false;
+            MinPauseIcon.IsVisible = true;
             LoadingLabel.IsVisible = false;
         });
-        _bridge.Player.Paused += (_, _) =>
-            Dispatcher.UIThread.Post(() => { PlayIcon.IsVisible = true; PauseIcon.IsVisible = false; });
-        _bridge.Player.Stopped += (_, _) =>
-            Dispatcher.UIThread.Post(() => { PlayIcon.IsVisible = true; PauseIcon.IsVisible = false; });
+        _bridge.Player.Paused += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            PlayIcon.IsVisible = true; PauseIcon.IsVisible = false;
+            MinPlayIcon.IsVisible = true; MinPauseIcon.IsVisible = false;
+        });
+        _bridge.Player.Stopped += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            PlayIcon.IsVisible = true; PauseIcon.IsVisible = false;
+            MinPlayIcon.IsVisible = true; MinPauseIcon.IsVisible = false;
+        });
 
         _bridge.Player.LengthChanged += (_, ev) =>
             Dispatcher.UIThread.Post(() => { _totalMs = ev.Length; UpdateTimeLabel(); });
@@ -467,29 +487,32 @@ public partial class MainWindow : Window
 
     private void UpdateState()
     {
-        var showControls = _isHovering && !_isLocked;
+        var showControls = _minified || (_isHovering && !_isLocked);
 
         if (showControls)
         {
             ControlsGrid.Transitions = null;
             ControlsGrid.Opacity = 1.0;
             ControlsGrid.IsHitTestVisible = true;
-            Opacity = 1.0;
         }
         else
         {
             ControlsGrid.Transitions = FadeOutControls;
             ControlsGrid.Opacity = 0.0;
             ControlsGrid.IsHitTestVisible = false;
-            Opacity = _targetOpacity;
         }
+
+        // minified: hover restores opacity; otherwise tied to controls visibility
+        Opacity = (_minified ? _isHovering : showControls) ? 1.0 : _targetOpacity;
+
+        // border visible in non-minified (ControlsGrid handles it) or when hovering in minified
+        ResizeBorder.IsVisible = !_minified || _isHovering;
 
         LoadingLabel.Transitions = FadeLabel;
         LoadingLabel.Opacity = showControls ? 0.33 : 1.0;
 
         if (_isLocked)
         {
-            // locked: padlock always visible; brightens on hover so user can find and click it
             LockClosedIcon.IsVisible = true;
             LockOpenIcon.IsVisible = false;
             PadlockButton.Transitions = FadePadlockHover;
@@ -502,7 +525,7 @@ public partial class MainWindow : Window
             LockOpenIcon.IsVisible = true;
             PadlockButton.Transitions = null;
             PadlockButton.Opacity = 0.85;
-            ResizeHandles.IsVisible = true;
+            ResizeHandles.IsVisible = !_minified;
         }
         else
         {
@@ -532,6 +555,13 @@ public partial class MainWindow : Window
         TrackTitle.IsVisible = false;
         LoadingLabel.Text = "Right-click to select media";
         LoadingLabel.IsVisible = true;
+        SetPlayEnabled(false);
+    }
+
+    private void SetPlayEnabled(bool enabled)
+    {
+        PlayPauseButton.IsEnabled = enabled;
+        MinPlayPauseButton.IsEnabled = enabled;
     }
 
     private void UpdateTimeLabel() =>
@@ -557,8 +587,50 @@ public partial class MainWindow : Window
 
     private void OnDragPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-            BeginMoveDrag(e);
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        var now = DateTime.UtcNow;
+        if ((now - _lastTopBarPress).TotalMilliseconds < 300)
+        {
+            _lastTopBarPress = DateTime.MinValue;
+            SetMinified(!_minified);
+            return;
+        }
+        _lastTopBarPress = now;
+        BeginMoveDrag(e);
+    }
+
+    private void SetMinified(bool minified)
+    {
+        _minified = minified;
+
+        VideoImage.IsVisible = !minified;
+        BrightnessOverlay.IsVisible = !minified;
+        BrightnessIcon.IsVisible = !minified;
+        BrightnessSlider.IsVisible = !minified;
+        LoadingLabel.IsVisible = !minified && LoadingLabel.IsVisible;
+
+        PrevButton.IsVisible = !minified;
+        PlayPauseButton.IsVisible = !minified;
+        NextButton.IsVisible = !minified;
+
+        MinTransportLeft.IsVisible = minified;
+
+        if (minified)
+        {
+            _savedHeight = Height;
+            MinHeight = 60;
+            Height = 84;
+        }
+        else
+        {
+            MinHeight = 135;
+            Height = _savedHeight > 0 ? _savedHeight : 270;
+            if (_queue.Count == 0 && _bridge?.Player.IsPlaying != true)
+                ShowHint();
+        }
+
+        UpdateTrashButton();
+        UpdateState();
     }
 
     private void OnVideoDragPressed(object? sender, PointerPressedEventArgs e)
