@@ -266,6 +266,10 @@ public partial class MainWindow : Window
         _pendingRestorePause = true;
         if (state.PositionMs > 0) VideoImage.IsVisible = false;
         await PlayQueueItemAsync(index);
+
+        // saved queue may be stale — refresh in the background so newly-added videos are picked up
+        if (_currentPlaylistId != null)
+            _ = RefreshQueueAsync(_currentPlaylistId, _playCts.Token);
     }
 
     private async Task PlayQueueItemAsync(int index)
