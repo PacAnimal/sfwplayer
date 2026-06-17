@@ -35,6 +35,12 @@ public partial class MainWindow : Window
     private VideoInfo? _removedVideo;
     private int _removedIndex = -1;
     private CancellationTokenSource _playCts = new();
+    private string? _currentVideoId;
+    private string? _currentStreamUrl;
+    private volatile int _errorRetryForIndex = -1; // -1 = not retrying; set on VLC thread, cleared on UI thread
+    private int _errorRetryCount;
+    private long _retrySeekMs;
+    private long _retryGoodMs; // accumulated playback ms since last retry (seek jumps excluded)
 
     private VlcVideoBridge? _bridge;
     private PlaylistPickerWindow? _picker;
@@ -267,7 +273,7 @@ public partial class MainWindow : Window
         if (index < 0 || index >= _queue.Count) return;
 
         // navigating away from the restored video — don't seek or pause on play
-        if (_queueIndex >= 0 && index != _queueIndex) { _pendingRestoreMs = 0; _pendingRestorePause = false; _pendingRestoreReveal = false; VideoImage.IsVisible = true; }
+        if (_queueIndex >= 0 && index != _queueIndex) { _pendingRestoreMs = 0; _pendingRestorePause = false; _pendingRestoreReveal = false; VideoImage.IsVisible = true; _errorRetryCount = 0; _errorRetryForIndex = -1; _retrySeekMs = 0; _retryGoodMs = 0; }
 
         _playCts.Cancel();
         _playCts = new CancellationTokenSource();
@@ -288,7 +294,11 @@ public partial class MainWindow : Window
 
         try
         {
-            var url = await _youtube.GetStreamUrl(video.Id, linked.Token);
+            var physW = ClientSize.Width * RenderScaling;
+            var physH = ClientSize.Height * RenderScaling;
+            _currentVideoId = video.Id;
+            var url = await _youtube.GetStreamUrl(video.Id, linked.Token, physW, physH);
+            _currentStreamUrl = url;
             _bridge!.Play(url);
         }
         catch (OperationCanceledException) { }
@@ -486,15 +496,62 @@ public partial class MainWindow : Window
                 UpdateTimeLabel();
                 if (_currentMs > 0 && ev.Length > 0)
                     SeekBar.Value = _currentMs / (double)ev.Length;
-                Dispatcher.UIThread.Post(ApplyRestoreSeek, DispatcherPriority.Background);
+                if (_retrySeekMs > 0)
+                    _ = ApplyRetrySeekAsync();
+                else
+                    Dispatcher.UIThread.Post(ApplyRestoreSeek, DispatcherPriority.Background);
             });
         _bridge.Player.TimeChanged += (_, ev) =>
-            Dispatcher.UIThread.Post(() => { _currentMs = ev.Time; if (!_isSeeking) UpdateTimeLabel(); });
+            Dispatcher.UIThread.Post(() =>
+            {
+                var delta = ev.Time - _currentMs;
+                _currentMs = ev.Time;
+                if (!_isSeeking) UpdateTimeLabel();
+                // accumulate real playback progress (filter out seek jumps); reset retry after 5s
+                if (_errorRetryCount > 0 && delta > 0 && delta < 2000)
+                {
+                    _retryGoodMs += delta;
+                    if (_retryGoodMs >= 5000) { _errorRetryCount = 0; _errorRetryForIndex = -1; _retryGoodMs = 0; }
+                }
+            });
         _bridge.Player.PositionChanged += (_, ev) =>
             Dispatcher.UIThread.Post(() => { if (!_isSeeking) SeekBar.Value = ev.Position; });
 
         _bridge.Player.EncounteredError += (_, _) =>
-            Dispatcher.UIThread.Post(() => _log.LogError("vlc encountered an error during playback"));
+        {
+            // set flag before EndReached fires so it can see it
+            _errorRetryForIndex = _queueIndex;
+            Task.Run(async () =>
+            {
+                if (_cts.IsCancellationRequested) { _errorRetryForIndex = -1; return; }
+                await Task.Delay(500);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (_cts.IsCancellationRequested) return;
+                    var retryIdx = _errorRetryForIndex;
+                    if (retryIdx < 0 || _queueIndex != retryIdx) return; // navigated away during delay
+                    _errorRetryCount++;
+                    if (_errorRetryCount <= 10)
+                    {
+                        _log.LogWarning("decode error (retry {n}/10) for {id}", _errorRetryCount, _queue.ElementAtOrDefault(retryIdx)?.Id);
+                        _retrySeekMs = _currentMs;
+                        _retryGoodMs = 0;
+                        _pendingRestoreMs = 0;
+                        _ = PlayQueueItemAsync(retryIdx);
+                    }
+                    else
+                    {
+                        _log.LogError("decode error after 10 retries, skipping {id}", _queue.ElementAtOrDefault(retryIdx)?.Id);
+                        _errorRetryForIndex = -1;
+                        _errorRetryCount = 0;
+                        if (_queue.Count > 0 && _queueIndex < _queue.Count - 1)
+                            _ = PlayQueueItemAsync(_queueIndex + 1);
+                        else
+                            ShowHint();
+                    }
+                });
+            });
+        };
 
         _bridge.Player.EndReached += (_, _) =>
             Task.Run(() =>
@@ -509,6 +566,7 @@ public partial class MainWindow : Window
                 if (_cts.IsCancellationRequested) return;
                 Dispatcher.UIThread.Post(() =>
                 {
+                    if (_errorRetryForIndex >= 0) return; // EncounteredError is handling this
                     if (_queue.Count > 0 && _queueIndex < _queue.Count - 1)
                         _ = PlayQueueItemAsync(_queueIndex + 1);
                     else
@@ -652,6 +710,16 @@ public partial class MainWindow : Window
         _bridge.Player.Position = pos;
     }
 
+    private async Task ApplyRetrySeekAsync()
+    {
+        if (_retrySeekMs <= 0 || _totalMs <= 0 || _bridge == null) return;
+        var ms = _retrySeekMs;
+        _retrySeekMs = 0;
+        await Task.Delay(300);
+        if (_bridge == null) return;
+        _bridge.Player.Position = (float)(ms / (double)_totalMs);
+    }
+
     private void UpdateTimeLabel() =>
         TimeLabel.Text = $"{Fmt(_currentMs)} / {Fmt(_totalMs)}";
 
@@ -780,6 +848,7 @@ public partial class MainWindow : Window
         if (!_clickThrough.IsLeftButtonHeld())
         {
             _resizeTimer.Stop();
+            EvaluateStreamResolution();
             return;
         }
 
@@ -817,6 +886,18 @@ public partial class MainWindow : Window
         }
 
         _clickThrough.MoveResize(newX, newY, newW, newH);
+    }
+
+    private void EvaluateStreamResolution()
+    {
+        if (_currentVideoId == null || _queue.Count == 0 || _queueIndex < 0) return;
+        var physW = ClientSize.Width * RenderScaling;
+        var physH = ClientSize.Height * RenderScaling;
+        var newUrl = _youtube.SelectStreamForSize(_currentVideoId, physW, physH);
+        if (newUrl == null || newUrl == _currentStreamUrl) return;
+        _log.LogInformation("window resized, switching stream resolution");
+        _currentStreamUrl = newUrl;
+        _bridge!.Play(newUrl);
     }
 
     private void OnPadlockClicked(object? sender, RoutedEventArgs e)
