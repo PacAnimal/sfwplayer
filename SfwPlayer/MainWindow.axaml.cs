@@ -497,7 +497,16 @@ public partial class MainWindow : Window
                 if (_currentMs > 0 && ev.Length > 0)
                     SeekBar.Value = _currentMs / (double)ev.Length;
                 if (_retrySeekMs > 0)
-                    _ = ApplyRetrySeekAsync();
+                {
+                    var ms = _retrySeekMs;
+                    var total = _totalMs;
+                    _retrySeekMs = 0;
+                    Cathedral.Utils.Background.RunTask(async () =>
+                    {
+                        await Task.Delay(300);
+                        if (_bridge != null) _bridge.Player.Position = (float)(ms / (double)total);
+                    }, _log, _cts.Token);
+                }
                 else
                     Dispatcher.UIThread.Post(ApplyRestoreSeek, DispatcherPriority.Background);
             });
@@ -708,16 +717,6 @@ public partial class MainWindow : Window
         if (_bridge.Player.IsPlaying) { VideoImage.IsVisible = true; return; } // user pressed play during wait
         _pendingRestoreReveal = true;
         _bridge.Player.Position = pos;
-    }
-
-    private async Task ApplyRetrySeekAsync()
-    {
-        if (_retrySeekMs <= 0 || _totalMs <= 0 || _bridge == null) return;
-        var ms = _retrySeekMs;
-        _retrySeekMs = 0;
-        await Task.Delay(300);
-        if (_bridge == null) return;
-        _bridge.Player.Position = (float)(ms / (double)_totalMs);
     }
 
     private void UpdateTimeLabel() =>

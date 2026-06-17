@@ -45,8 +45,8 @@ public class YoutubeService(ILogger<YoutubeService> log, CookieStore? cookies = 
         if (windowWidth > 0 && windowHeight > 0)
         {
             // use the largest stream for the most accurate aspect ratio
-            var ref_ = streams[^1];
-            var aspect = (double)ref_.VideoResolution.Width / ref_.VideoResolution.Height;
+            var largest = streams[^1];
+            var aspect = (double)largest.VideoResolution.Width / largest.VideoResolution.Height;
 
             // display area: how the video fills the window with Stretch=Uniform
             double displayW, displayH;
