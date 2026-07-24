@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace SfwPlayer.Platform.Windows;
 
-internal static class Native
+internal static class NativeMethods
 {
     internal const int GwlExstyle = -20;
     internal const int WsExTransparent = 0x00000020;
@@ -20,7 +20,7 @@ internal static class Native
     [DllImport("user32.dll")] internal static extern bool GetCursorPos(out Point pt);
     [DllImport("user32.dll")] internal static extern short GetAsyncKeyState(int vk);
 
-    // crt fd primitives (mirrors MacOS.Native POSIX equivalents)
+    // crt fd primitives (mirrors MacOS.NativeMethods POSIX equivalents)
     internal const int OWronly = 0x0001;
     [DllImport("msvcrt.dll")] internal static extern int _open_osfhandle(IntPtr osfhandle, int flags);
     [DllImport("msvcrt.dll")] internal static extern int _dup(int fd);

@@ -2,9 +2,9 @@ using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Microsoft.Extensions.Logging;
-using LinuxNative = SfwPlayer.Platform.Linux.Native;
-using MacNative = SfwPlayer.Platform.MacOS.Native;
-using WinNative = SfwPlayer.Platform.Windows.Native;
+using LinuxNative = SfwPlayer.Platform.Linux.NativeMethods;
+using MacNative = SfwPlayer.Platform.MacOS.NativeMethods;
+using WinNative = SfwPlayer.Platform.Windows.NativeMethods;
 
 namespace SfwPlayer.Platform;
 

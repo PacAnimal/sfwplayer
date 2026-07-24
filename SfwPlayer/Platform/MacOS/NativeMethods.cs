@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace SfwPlayer.Platform.MacOS;
 
-internal static class Native
+internal static class NativeMethods
 {
     internal const int KCgEventSourceStateCombinedSessionState = 1;
     internal const ulong KCgEventFlagMaskControl = 1UL << 18;

@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace SfwPlayer.Platform.Linux;
 
-internal static class Native
+internal static class NativeMethods
 {
     internal const int ShapeInput = 2;
     internal const int ShapeSet = 0;

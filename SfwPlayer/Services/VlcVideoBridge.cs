@@ -6,7 +6,7 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using LibVLCSharp.Shared;
 using SfwPlayer.Platform.MacOS;
-using WinNative = SfwPlayer.Platform.Windows.Native;
+using WinNative = SfwPlayer.Platform.Windows.NativeMethods;
 
 namespace SfwPlayer.Services;
 
@@ -202,12 +202,12 @@ public sealed class VlcVideoBridge : IDisposable
     {
         if (OperatingSystem.IsMacOS())
         {
-            var devNull = Native.open("/dev/null", Native.OWronly);
-            var saved = Native.dup(2);
-            _ = Native.dup2(devNull, 2);
-            _ = Native.close(devNull);
+            var devNull = NativeMethods.open("/dev/null", NativeMethods.OWronly);
+            var saved = NativeMethods.dup(2);
+            _ = NativeMethods.dup2(devNull, 2);
+            _ = NativeMethods.close(devNull);
             try { Player.Stop(); }
-            finally { _ = Native.dup2(saved, 2); _ = Native.close(saved); }
+            finally { _ = NativeMethods.dup2(saved, 2); _ = NativeMethods.close(saved); }
             return;
         }
         if (OperatingSystem.IsWindows()) { WithStderrSuppressed(Player.Stop); return; }
