@@ -1,0 +1,36 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    # macos-14+ runners are arm64, matching the bundled libvlc/osx-arm64 dylibs
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build Debug
+        run: dotnet build -c Debug --no-restore
+
+      - name: Build Release
+        run: dotnet build -c Release --no-restore
+
+      # the playback and *WithRealAuth*/*WatchLater* tests need a real signed-in
+      # YouTube session, so they cannot run on a hosted runner; everything else can
+      - name: Test (network-independent only)
+        run: >
+          dotnet test --no-build -c Debug
+          --filter "FullyQualifiedName!~Playback&FullyQualifiedName!~CleanShutdown&FullyQualifiedName!~WithRealAuth&FullyQualifiedName!~WatchLater"
