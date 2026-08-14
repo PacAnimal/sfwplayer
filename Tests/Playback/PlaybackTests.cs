@@ -15,7 +15,7 @@ public class PlaybackTests
 
     // Spawns SfwPlayer --url <url> --exit-on-done; the real app window opens visibly and exits 0 when done.
     [Test]
-    [CancelAfter(60_000)]
+    [CancelAfter(180_000)]
     public async Task PlaysShortVideoToCompletion(CancellationToken cancel)
     {
         var sfwExe = SubprocessHelper.FindSfwPlayerExe();
@@ -31,8 +31,9 @@ public class PlaybackTests
         psi.ArgumentList.Add(TestVideoUrl);
         psi.ArgumentList.Add("--exit-on-done");
 
+        // the child resolves the stream itself, so pace its launch alongside the in-process calls
         var sw = Stopwatch.StartNew();
-        using var proc = Process.Start(psi)!;
+        using var proc = await YoutubeThrottle.PaceAsync(() => Task.FromResult(Process.Start(psi)!), cancel);
         try
         {
             await proc.WaitForExitAsync(cancel);
@@ -46,12 +47,12 @@ public class PlaybackTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(proc.ExitCode, Is.Zero, "SfwPlayer should exit 0 after EndReached");
-            Assert.That(sw.Elapsed.TotalSeconds, Is.LessThan(50), "7-second video should complete well within 50s");
+            Assert.That(sw.Elapsed.TotalSeconds, Is.LessThan(120), "7-second video should complete well within 120s");
         }
     }
 
     [Test]
-    [CancelAfter(60_000)]
+    [CancelAfter(180_000)]
     public async Task VmemReceivesFrames(CancellationToken cancel)
     {
         const int maxW = 1280, maxH = 720;
@@ -103,8 +104,8 @@ public class PlaybackTests
             player.SetVideoFormatCallbacks(VideoFormat, null);
             player.SetVideoCallbacks(Lock, null, Display);
 
-            var url = await new YoutubeService(TestLog.CreateLogger<YoutubeService>())
-                .GetStreamUrl(TestVideoUrl, cancel);
+            var url = await YoutubeThrottle.PaceAsync(
+                () => new YoutubeService(TestLog.CreateLogger<YoutubeService>()).GetStreamUrl(TestVideoUrl, cancel), cancel);
             using var media = new Media(vlc, new Uri(url));
             player.Play(media);
 

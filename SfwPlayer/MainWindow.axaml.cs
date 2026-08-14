@@ -240,6 +240,13 @@ public partial class MainWindow : Window
             catch (Exception ex)
             {
                 _log.LogError(ex, "failed to load video");
+                // in --exit-on-done mode nothing will ever fire EndReached, so bail out
+                // instead of idling in the event loop until the caller times us out
+                if (App.ExitOnDone)
+                {
+                    (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Shutdown(1);
+                    return;
+                }
                 ShowHint();
             }
         }

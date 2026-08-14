@@ -12,7 +12,7 @@ public class CleanShutdownTests
     // ([h264] get_buffer() / thread_get_buffer() failed) that VLC 3.x produces when
     // its picture-pool teardown races with active frame-decode threads during Stop().
     [Test]
-    [CancelAfter(30_000)]
+    [CancelAfter(180_000)]
     public async Task StopMidPlaybackProducesNoDecoderErrors(CancellationToken cancel)
     {
         var (savedFd, readFd) = StderrCapture.Begin();
@@ -26,8 +26,8 @@ public class CleanShutdownTests
             cancel.Register(() => playing.TrySetCanceled());
             bridge.Player.Playing += (_, _) => playing.TrySetResult();
 
-            var url = await new YoutubeService(TestLog.CreateLogger<YoutubeService>())
-                .GetStreamUrl(TestVideoUrl, cancel);
+            var url = await YoutubeThrottle.PaceAsync(
+                () => new YoutubeService(TestLog.CreateLogger<YoutubeService>()).GetStreamUrl(TestVideoUrl, cancel), cancel);
             bridge.Play(url);
 
             await playing.Task;

@@ -37,13 +37,16 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.0.4" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.0.4" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.4" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.4" />
-    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.17" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="Avalonia" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.20" Condition="'$(Configuration)' == 'Debug'" />
+    <!-- pinned: 6.6.1 regresses stream resolution (VideoUnavailableException on valid videos) -->
     <PackageReference Include="YoutubeExplode" Version="6.6.0" />
-    <PackageReference Include="LibVLCSharp" Version="3.9.7.1" />
+    <!-- transitive from YoutubeExplode 6.6.0; 1.4.0 has a known moderate vulnerability (GHSA-pgww-w46g-26qg) -->
+    <PackageReference Include="AngleSharp" Version="1.7.1" />
+    <PackageReference Include="LibVLCSharp" Version="3.10.1" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.21" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
     <PackageReference Include="VideoLAN.LibVLC.Mac" Version="3.1.3.1" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
     <PackageReference Include="VideoLAN.LibVLC.Linux" Version="3.0.21" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />

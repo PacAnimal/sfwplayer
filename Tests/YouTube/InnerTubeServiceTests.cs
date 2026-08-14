@@ -366,18 +366,21 @@ public class InnerTubeServiceTests
 
     // integration tests: require ~/.config/sfwplayer/test-cookies.json (gitignored; use 'Save Test Cookies' in the app)
 
+    private static readonly SemaphoreSlim FirstVideosGate = new(1, 1);
+    private static List<VideoInfo>? _firstVideos;
+
     [Test]
-    [CancelAfter(30_000)]
+    [CancelAfter(180_000)]
     public async Task GetPlaylistsAsync_WithRealAuth_ReturnsPlaylists(CancellationToken cancel)
     {
         var store = RequireTestStore();
         var svc = new InnerTubeService(store, TestLog.CreateLogger<InnerTubeService>());
-        var playlists = await svc.GetPlaylistsAsync(cancel);
+        var playlists = await YoutubeThrottle.PaceAsync(() => svc.GetPlaylistsAsync(cancel), cancel);
         Assert.That(playlists, Is.Not.Empty, "should return playlists when authenticated");
     }
 
     [Test]
-    [CancelAfter(30_000)]
+    [CancelAfter(180_000)]
     public async Task GetPlaylistVideosAsync_WithRealAuth_ReturnsVideos(CancellationToken cancel)
     {
         var videos = await RequireFirstVideosAsync(cancel);
@@ -385,7 +388,7 @@ public class InnerTubeServiceTests
     }
 
     [Test]
-    [CancelAfter(30_000)]
+    [CancelAfter(180_000)]
     public async Task GetPlaylistVideosAsync_WithRealAuth_VideoHasThumbnailUrl(CancellationToken cancel)
     {
         var videos = await RequireFirstVideosAsync(cancel);
@@ -395,7 +398,7 @@ public class InnerTubeServiceTests
     }
 
     [Test]
-    [CancelAfter(30_000)]
+    [CancelAfter(180_000)]
     public async Task GetPlaylistVideosAsync_WithRealAuth_SomeVideosHaveDuration(CancellationToken cancel)
     {
         var videos = await RequireFirstVideosAsync(cancel);
@@ -404,7 +407,7 @@ public class InnerTubeServiceTests
     }
 
     [Test]
-    [CancelAfter(30_000)]
+    [CancelAfter(180_000)]
     public async Task GetPlaylistVideosAsync_WithRealAuth_ThumbnailIsDownloadable(CancellationToken cancel)
     {
         var videos = await RequireFirstVideosAsync(cancel);
@@ -420,33 +423,34 @@ public class InnerTubeServiceTests
     }
 
     [Test]
-    [CancelAfter(60_000)]
+    [CancelAfter(180_000)]
     public async Task GetStreamUrl_WithRealAuth_FromPlaylistVideo_ReturnsUrl(CancellationToken cancel)
     {
         var store = RequireTestStore();
         var svc = new InnerTubeService(store, TestLog.CreateLogger<InnerTubeService>());
         var videos = await RequireFirstVideosAsync(svc, cancel);
         var yt = new YoutubeService(TestLog.CreateLogger<YoutubeService>(), store);
-        var url = await yt.GetStreamUrl(videos.First().Id, cancel);
+        var url = await YoutubeThrottle.PaceAsync(() => yt.GetStreamUrl(videos.First().Id, cancel), cancel);
         Assert.That(url, Does.StartWith("https://"), $"stream URL for {videos.First().Id} should be https");
     }
 
 
     [Test]
-    [CancelAfter(120_000)]
+    [CancelAfter(240_000)]
     public async Task GetPlaylistVideosAsync_WatchLater_LoadsAllDeclaredVideos(CancellationToken cancel)
     {
         var store = RequireTestStore();
         var svc = new InnerTubeService(store, TestLog.CreateLogger<InnerTubeService>());
         using var http = svc.BuildClient();
-        var html = await http.GetStringAsync("https://www.youtube.com/playlist?list=WL", cancel);
+        var html = await YoutubeThrottle.PaceAsync(
+            () => http.GetStringAsync("https://www.youtube.com/playlist?list=WL", cancel), cancel);
         var json = InnerTubeService.ExtractYtInitialData(html);
         Assert.That(json, Is.Not.Null, "ytInitialData not found in Watch Later page");
         using var doc = JsonDocument.Parse(json!);
         var declared = InnerTubeService.ExtractPlaylistVideoCount(doc.RootElement);
         Assume.That(declared, Is.GreaterThan(0), "Watch Later appears empty or count not parseable; skipping");
 
-        var videos = await svc.GetPlaylistVideosAsync("WL", cancel);
+        var videos = await YoutubeThrottle.PaceAsync(() => svc.GetPlaylistVideosAsync("WL", cancel), cancel);
         Assert.That(videos, Has.Count.EqualTo(declared),
             $"Watch Later declared {declared} videos but loaded {videos.Count}");
     }
@@ -459,16 +463,28 @@ public class InnerTubeServiceTests
         return await RequireFirstVideosAsync(svc, cancel);
     }
 
+    // several tests assert on the same playlist payload; fetching it once keeps the
+    // suite from re-paginating every playlist per test and tripping YouTube's throttle
     private static async Task<List<VideoInfo>> RequireFirstVideosAsync(InnerTubeService svc, CancellationToken cancel)
     {
-        var playlists = await svc.GetPlaylistsAsync(cancel);
-        if (playlists.Count == 0)
-            Assert.Ignore("no playlists found; check test credentials");
-
-        foreach (var playlist in playlists)
+        await FirstVideosGate.WaitAsync(cancel);
+        try
         {
-            var videos = await svc.GetPlaylistVideosAsync(playlist.Id, cancel);
-            if (videos.Count > 0) return videos;
+            if (_firstVideos != null) return _firstVideos;
+
+            var playlists = await YoutubeThrottle.PaceAsync(() => svc.GetPlaylistsAsync(cancel), cancel);
+            if (playlists.Count == 0)
+                Assert.Ignore("no playlists found; check test credentials");
+
+            foreach (var playlist in playlists)
+            {
+                var videos = await YoutubeThrottle.PaceAsync(() => svc.GetPlaylistVideosAsync(playlist.Id, cancel), cancel);
+                if (videos.Count > 0) return _firstVideos = videos;
+            }
+        }
+        finally
+        {
+            FirstVideosGate.Release();
         }
         Assert.Ignore("no playlist with videos found; check test credentials");
         return []; // unreachable
