@@ -105,7 +105,7 @@ public class PlaybackTests
             player.SetVideoCallbacks(Lock, null, Display);
 
             var url = await YoutubeThrottle.PaceAsync(
-                () => new YoutubeService(TestLog.CreateLogger<YoutubeService>()).GetStreamUrl(TestVideoUrl, cancel), cancel);
+                () => new YoutubeService(TestLog.CreateLogger<YoutubeService>()).GetStreamUrl(TestVideoUrl, cancel: cancel), cancel);
             using var media = new Media(vlc, new Uri(url));
             player.Play(media);
 

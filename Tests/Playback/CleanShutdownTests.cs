@@ -27,7 +27,7 @@ public class CleanShutdownTests
             bridge.Player.Playing += (_, _) => playing.TrySetResult();
 
             var url = await YoutubeThrottle.PaceAsync(
-                () => new YoutubeService(TestLog.CreateLogger<YoutubeService>()).GetStreamUrl(TestVideoUrl, cancel), cancel);
+                () => new YoutubeService(TestLog.CreateLogger<YoutubeService>()).GetStreamUrl(TestVideoUrl, cancel: cancel), cancel);
             bridge.Play(url);
 
             await playing.Task;

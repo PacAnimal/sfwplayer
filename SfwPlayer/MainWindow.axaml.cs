@@ -233,7 +233,7 @@ public partial class MainWindow : Window
             SetPlayEnabled(true);
             try
             {
-                var url = await _youtube.GetStreamUrl(App.OverrideUrl, _cts.Token);
+                var url = await _youtube.GetStreamUrl(App.OverrideUrl, cancel: _cts.Token);
                 _bridge!.Play(url);
             }
             catch (OperationCanceledException) { }
@@ -308,7 +308,7 @@ public partial class MainWindow : Window
             var physW = ClientSize.Width * RenderScaling;
             var physH = ClientSize.Height * RenderScaling;
             _currentVideoId = video.Id;
-            var url = await _youtube.GetStreamUrl(video.Id, linked.Token, physW, physH);
+            var url = await _youtube.GetStreamUrl(video.Id, physW, physH, linked.Token);
             _currentStreamUrl = url;
             _bridge!.Play(url);
         }
@@ -515,7 +515,7 @@ public partial class MainWindow : Window
                     Cathedral.Utils.Background.RunTask(async () =>
                     {
                         await Task.Delay(300);
-                        if (_bridge != null) _bridge.Player.Position = (float)(ms / (double)total);
+                        _bridge?.Player.Position = (float)(ms / (double)total);
                     }, _log, _cts.Token);
                 }
                 else

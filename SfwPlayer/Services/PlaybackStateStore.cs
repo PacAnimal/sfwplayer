@@ -10,14 +10,14 @@ public class PlaybackStateStore(ILogger<PlaybackStateStore> log)
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "SfwPlayer", "playback-state.json");
 
-    private static readonly JsonSerializerOptions _json = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
     public void Save(PlaybackState state)
     {
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(DataPath)!);
-            File.WriteAllText(DataPath, JsonSerializer.Serialize(state, _json));
+            File.WriteAllText(DataPath, JsonSerializer.Serialize(state, Json));
         }
         catch (Exception ex)
         {
@@ -30,8 +30,9 @@ public class PlaybackStateStore(ILogger<PlaybackStateStore> log)
         if (!File.Exists(DataPath)) return null;
         try
         {
-            var state = JsonSerializer.Deserialize<PlaybackState>(File.ReadAllText(DataPath), _json);
-            if (state?.Queue is { Count: > 0 }) log.LogInformation("restored playback state: {title}", state.Queue[state.QueueIndex].Title);
+            var state = JsonSerializer.Deserialize<PlaybackState>(File.ReadAllText(DataPath), Json);
+            if (state?.Queue is { Count: > 0 } && log.IsEnabled(LogLevel.Information))
+                log.LogInformation("restored playback state: {title}", state.Queue[state.QueueIndex].Title);
             return state;
         }
         catch (Exception ex)

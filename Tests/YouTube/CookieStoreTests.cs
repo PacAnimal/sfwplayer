@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
 using SfwPlayer.Services;
+using Tests.Setup;
 
 namespace Tests.YouTube;
 
@@ -13,14 +14,8 @@ public class CookieStoreTests
     [SetUp]
     public void SetUp()
     {
-        _tempPath = Path.Combine(Path.GetTempPath(), $"SfwPlayer-test-{Guid.NewGuid()}.json");
+        _tempPath = Path.Combine(TestPaths.FreshFixtureRoot(nameof(CookieStoreTests)), "cookies.json");
         _store = new CookieStore(NullLogger<CookieStore>.Instance) { DataPath = _tempPath };
-    }
-
-    [TearDown]
-    public void TearDown()
-    {
-        if (File.Exists(_tempPath)) File.Delete(_tempPath);
     }
 
     // --- HasCookies ---

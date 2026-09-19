@@ -10,7 +10,7 @@ public class YoutubeService(ILogger<YoutubeService> log, CookieStore? cookies = 
     private (string key, StreamManifest manifest)? _manifestCache;
 
     // accepts a full URL or a bare video ID; windowWidth/Height in physical pixels for resolution selection
-    public async Task<string> GetStreamUrl(string? videoIdOrUrl = null, CancellationToken cancel = default, double windowWidth = 0, double windowHeight = 0)
+    public async Task<string> GetStreamUrl(string? videoIdOrUrl = null, double windowWidth = 0, double windowHeight = 0, CancellationToken cancel = default)
     {
         var target = videoIdOrUrl == null ? DefaultVideoUrl
             : videoIdOrUrl.Contains("://") ? videoIdOrUrl

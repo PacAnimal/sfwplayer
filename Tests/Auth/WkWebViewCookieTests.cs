@@ -62,7 +62,7 @@ public class WkWebViewCookieTests
             }
             finally
             {
-                if (!proc.HasExited) proc.Kill();
+                await SubprocessHelper.WaitForCleanExit(proc);
             }
         }
         finally

@@ -430,7 +430,7 @@ public class InnerTubeServiceTests
         var svc = new InnerTubeService(store, TestLog.CreateLogger<InnerTubeService>());
         var videos = await RequireFirstVideosAsync(svc, cancel);
         var yt = new YoutubeService(TestLog.CreateLogger<YoutubeService>(), store);
-        var url = await YoutubeThrottle.PaceAsync(() => yt.GetStreamUrl(videos.First().Id, cancel), cancel);
+        var url = await YoutubeThrottle.PaceAsync(() => yt.GetStreamUrl(videos.First().Id, cancel: cancel), cancel);
         Assert.That(url, Does.StartWith("https://"), $"stream URL for {videos.First().Id} should be https");
     }
 

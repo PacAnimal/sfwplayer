@@ -83,7 +83,7 @@ public class AppleWebAuthTests
         catch (OperationCanceledException) { }
         finally
         {
-            if (!proc.HasExited) proc.Kill();
+            await SubprocessHelper.WaitForCleanExit(proc);
         }
 
         Assert.That(done, Is.True, "SfwPlayer --signin-test should print DONE after showing the sign-in window");
