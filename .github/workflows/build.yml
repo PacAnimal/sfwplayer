@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     # macos-14+ runners are arm64, matching the bundled libvlc/osx-arm64 dylibs
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - uses: actions/checkout@v7
